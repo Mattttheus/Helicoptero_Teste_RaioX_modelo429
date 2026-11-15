@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bell 429 – Manual de Manutenção Interativo 3D</title>
+  <meta name="description" content="Demonstração: modelo 3D interativo do Bell 429 ligado às inspeções do BHT-429-MPI, controle por horas e regulamentação ANAC.">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <aside id="painel">
+      <header>
+        <div class="marca"><span class="selo">429</span>
+          <div><h1>Manual de Manutenção Interativo</h1><p>Bell 429 · demonstração 3D · base BHT-429-MPI</p></div>
+        </div>
+      </header>
+      <nav id="abas" role="tablist">
+        <button data-aba="descrever" class="ativa">Descrever</button>
+        <button data-aba="inspecoes">Inspeções</button>
+        <button data-aba="controle">Controle</button>
+        <button data-aba="limites">Limites</button>
+        <button data-aba="eventos">Eventos</button>
+        <button data-aba="anac">ANAC</button>
+        <button data-aba="sistemas">Sistemas</button>
+      </nav>
+      <div id="conteudo"></div>
+      <footer>Modelo ilustrativo e simplificado para demonstração e treinamento. Não substitui o BHT-429-MM / MPI, o manual do motor P&amp;WC nem os regulamentos da ANAC vigentes.</footer>
+    </aside>
+
+    <main id="vista">
+      <div id="barra">
+        <button id="btRaiox" title="Deixa o revestimento transparente">Raio-X</button>
+        <button id="btGirar" title="Liga/desliga a rotação dos rotores">Girar rotores</button>
+        <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
+      </div>
+      <div id="selbar" hidden></div>
+      <div id="rotulos"></div>
+      <div id="dica" hidden></div>
+      <div id="ajuda">Arraste para girar · role para aproximar · clique numa peça para ver a ficha</div>
+      <div id="erro" hidden></div>
+    </main>
+  </div>
+
+  <script src="dados.js"></script>
+  <script src="anac.js"></script>
+  <script type="module" src="app.js"></script>
+  <script>
+    // Aviso amigável se abrir direto do disco (módulos exigem servidor: WAMP, GitHub Pages etc.)
+    if (location.protocol === 'file:') {
+      var e = document.getElementById('erro'); e.hidden = false;
+      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/</b> (WAMP ligado) ou pelo GitHub Pages. Aberto direto do disco, o navegador bloqueia os módulos 3D.';
+    }
+  </script>
+</body>
+</html>
