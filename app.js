@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { construirHelicoptero } from './modelo.js';
 
-const { COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI, ANAC, CONTROLE } = window.B429;
+const { COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI, ANAC, CONTROLE, SENSORES } = window.B429;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const guarda = {
@@ -42,17 +42,29 @@ for (const id in heli.partes) {
 const matDestaque = new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff5a00, emissiveIntensity: 0.7, roughness: 0.45, side: THREE.DoubleSide });
 const matFantasma = new THREE.MeshStandardMaterial({ color: 0x9db3c9, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9 });
 
+const matSaude = {
+  ok: new THREE.MeshStandardMaterial({ color: 0x3fc98a, emissive: 0x0f7a45, emissiveIntensity: 0.5, roughness: 0.5, side: THREE.DoubleSide }),
+  al: new THREE.MeshStandardMaterial({ color: 0xf0b83c, emissive: 0xa86a00, emissiveIntensity: 0.7, roughness: 0.5, side: THREE.DoubleSide }),
+  cr: new THREE.MeshStandardMaterial({ color: 0xef4d4d, emissive: 0xc01010, emissiveIntensity: 0.9, roughness: 0.5, side: THREE.DoubleSide }),
+  sem: new THREE.MeshStandardMaterial({ color: 0x7c8794, roughness: 0.7, side: THREE.DoubleSide }),
+  // revestimento em condição normal fica translúcido para deixar ver os componentes internos
+  cascaOk: new THREE.MeshStandardMaterial({ color: 0x4fd69a, transparent: true, opacity: 0.16, depthWrite: false, roughness: 0.8, side: THREE.DoubleSide })
+};
+
 const sel = new Set();
-let raiox = false, girar = false;
+let raiox = false, girar = false, mapaSaude = false;
+let saudeComp = {};   // componente -> 'ok' | 'al' | 'cr' | 'sem' (preenchido pela telemetria)
 
 function aplicarMateriais() {
   const tem = sel.size > 0;
   for (const m of heli.malhas) {
     const id = m.userData.comp;
-    m.material = tem ? (sel.has(id) ? matDestaque : matFantasma) : (raiox && COMPS[id].shell ? matFantasma : m.userData.base);
-    m.renderOrder = m.material === matFantasma ? 2 : 0;
+    if (tem) m.material = sel.has(id) ? matDestaque : matFantasma;
+    else if (mapaSaude) m.material = !saudeComp[id] ? matFantasma : COMPS[id].shell && saudeComp[id] === 'ok' ? matSaude.cascaOk : matSaude[saudeComp[id]];
+    else m.material = raiox && COMPS[id].shell ? matFantasma : m.userData.base;
+    m.renderOrder = m.material.transparent && m.material.depthWrite === false ? 2 : 0;
   }
-  heli.matLinha.opacity = tem || raiox ? 0.18 : 0.6;
+  heli.matLinha.opacity = tem || raiox || mapaSaude ? 0.18 : 0.6;
 }
 
 function selecionar(ids, { foco = true } = {}) {
@@ -138,6 +150,8 @@ renderer.domElement.addEventListener('pointerleave', () => { dica.hidden = true;
 /* ---------- Barra de ferramentas ---------- */
 $('#btRaiox').onclick = (e) => { raiox = !raiox; e.currentTarget.classList.toggle('on', raiox); aplicarMateriais(); };
 $('#btGirar').onclick = (e) => { girar = !girar; e.currentTarget.classList.toggle('on', girar); };
+function ligarMapaSaude(v) { mapaSaude = v; $('#btSaude').classList.toggle('on', v); if (v && sel.size) selecionar([], { foco: false }); else aplicarMateriais(); }
+$('#btSaude').onclick = () => ligarMapaSaude(!mapaSaude);
 $('#btGeral').onclick = () => vistaGeral();
 
 /* ---------- Laço de desenho ---------- */
@@ -153,6 +167,7 @@ renderer.setAnimationLoop(() => {
   }
   if (girar) { heli.rotorP.rotation.y += dt * 5; heli.rotorC.rotation.z += dt * 22; }
   matDestaque.emissiveIntensity = 0.55 + 0.35 * Math.sin(t * 4);
+  matSaude.cr.emissiveIntensity = 0.6 + 0.5 * Math.sin(t * 6);
   controles.update(); renderer.render(cena, camera); posicionarRotulos();
 });
 
@@ -370,10 +385,108 @@ desenhar.sistemas = (idSel) => {
     ${ids.map((id) => `<div class="item${id === idSel ? ' ativo' : ''}" data-ficha="${id}"><span class="tag">ATA ${COMPS[id].ata}</span><div class="desc">${esc(COMPS[id].n)}<div class="meta">Zona ${esc(COMPS[id].z)}</div></div></div>`).join('')}`;
 };
 
+/* ---------- Sensores IoT (monitoramento de condição) ---------- */
+const iot = guarda.ler('b429_iot', { modo: 'sim', url: 'api/telemetria.php' });
+const leit = {};          // id -> { v, t (ms), hist: [] }
+const falha = new Set();  // sensores com falha simulada
+let conexao = 'simulação';
+// em modo "sensores reais", quem ainda não enviou leitura aparece como SEM SINAL
+function zerarLeituras() { for (const s of SENSORES) leit[s.id] = { v: s.base, t: iot.modo === 'sim' ? Date.now() : 0, hist: [] }; }
+zerarLeituras();
+
+function estado(s) {
+  const l = leit[s.id];
+  if (Date.now() - l.t > 30000) return 'sem';
+  if (s.tipo === 'bool') return l.v >= 1 ? 'cr' : 'ok';
+  if (s.tipo === 'max') return l.v >= s.cr ? 'cr' : l.v >= s.al ? 'al' : 'ok';
+  return l.v <= s.cr ? 'cr' : l.v <= s.al ? 'al' : 'ok';
+}
+const ROT = { ok: ['ok', 'NORMAL'], al: ['al', 'ALERTA'], cr: ['er', 'CRÍTICO'], sem: ['', 'SEM SINAL'] };
+const fmt = (s, v) => (s.tipo === 'bool' ? (v >= 1 ? 'DETECTADO' : 'limpo') : v.toLocaleString('pt-BR', { maximumFractionDigits: s.base < 2 ? 2 : 1 }) + ' ' + s.un);
+function registrar(s, v, t = Date.now()) { const l = leit[s.id]; l.v = v; l.t = t; l.hist.push(v); if (l.hist.length > 60) l.hist.shift(); }
+
+function passoSimulado() {
+  for (const s of SENSORES) {
+    const l = leit[s.id];
+    if (s.tipo === 'bool') { registrar(s, falha.has(s.id) ? 1 : 0); continue; }
+    const alvo = falha.has(s.id) ? s.cr + (s.cr - s.al) * 0.35 * (s.tipo === 'max' ? 1 : -1) : s.base;
+    registrar(s, l.v + (alvo - l.v) * 0.12 + (Math.random() - 0.5) * s.ruido);
+  }
+}
+async function passoRemoto() {
+  try {
+    const r = await fetch(iot.url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json(), agora = d.agora || Date.now() / 1000;
+    for (const s of SENSORES) { const x = d.leituras?.[s.id]; if (x && typeof x.v === 'number') registrar(s, x.v, Date.now() - (agora - x.t) * 1000); }
+    conexao = 'recebendo de ' + iot.url;
+  } catch (e) { conexao = 'sem conexão com ' + iot.url + ' (' + e.message + ')'; }
+}
+function avaliar() {
+  const pior = {}, ordem = { sem: 0, ok: 1, al: 2, cr: 3 };
+  for (const s of SENSORES) { const e = estado(s); for (const c of s.comp) if (!pior[c] || ordem[e] > ordem[pior[c]]) pior[c] = e; }
+  const mudou = JSON.stringify(pior) !== JSON.stringify(saudeComp);
+  saudeComp = pior;
+  if (mudou && mapaSaude && !sel.size) aplicarMateriais();
+  const n = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))).length, bt = $('#btSaude');
+  bt.textContent = n ? `Saúde · ${n} alerta${n > 1 ? 's' : ''}` : 'Saúde';
+  bt.classList.toggle('aviso', n > 0 && !mapaSaude);
+}
+function curva(h, s) {
+  if (h.length < 2) return '';
+  const lo = Math.min(...h, s.tipo === 'min' ? s.cr : s.base), hi = Math.max(...h, s.tipo === 'max' ? s.cr : s.base), f = hi - lo || 1;
+  return h.map((v, i) => `${(i * 100 / 59).toFixed(1)},${(22 - (v - lo) / f * 20).toFixed(1)}`).join(' ');
+}
+function atualizarSensores() {
+  if (abaAtual !== 'sensores') return;
+  for (const s of SENSORES) {
+    const c = conteudo.querySelector(`[data-sensor="${s.id}"]`); if (!c) continue;
+    const e = estado(s), [cls, txt] = ROT[e];
+    c.querySelector('.valor').textContent = fmt(s, leit[s.id].v);
+    const tag = c.querySelector('.tag'); tag.className = 'tag ' + cls; tag.textContent = txt;
+    c.querySelector('polyline').setAttribute('points', curva(leit[s.id].hist, s));
+    c.classList.toggle('critico', e === 'cr'); c.classList.toggle('alerta', e === 'al');
+  }
+  const elC = $('#iotConexao'); if (elC) elC.textContent = conexao;
+  const alertas = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))), elA = $('#iotAlertas'), chave = alertas.map((s) => s.id + estado(s)).join();
+  if (elA && elA.dataset.chave !== chave) {
+    elA.dataset.chave = chave;
+    elA.innerHTML = alertas.length ? alertas.map((s) => {
+      const chave = new Set(normalizar(s.n + ' ' + s.dica).filter((w) => w.length >= 4));
+      const rel = TAREFAS.filter((x) => x.comps.some((c) => s.comp.includes(c)))
+        .map((x) => ({ x, p: normalizar(x.t[1]).filter((w) => chave.has(w)).length })).sort((a, b) => b.p - a.p).slice(0, 3).map((o) => o.x);
+      return `<div class="cartao clic ${estado(s) === 'cr' ? 'critico' : 'alerta'}" data-comps="${s.comp.join(',')}"><div class="tit"><span>${esc(s.n)}</span><span class="tag ${ROT[estado(s)][0]}">${ROT[estado(s)][1]}</span></div>
+        <div class="sub"><b>Ação sugerida:</b> ${esc(s.dica)}</div></div>${rel.map((x) => itemTarefa(x, { origem: true })).join('')}`;
+    }).join('') : '<p class="nota">Nenhum alerta ativo: todos os sensores dentro da faixa.</p>';
+  }
+}
+setInterval(async () => { if (iot.modo === 'sim') { passoSimulado(); conexao = 'simulação (dados gerados no navegador)'; } else await passoRemoto(); avaliar(); atualizarSensores(); }, 1000);
+
+desenhar.sensores = () => {
+  conteudo.innerHTML = `<h2>Sensores IoT – monitoramento de condição</h2>
+    <p class="nota">Cada sensor está ligado a um componente do modelo. Quando sai da faixa, o componente muda de cor no mapa de saúde e as tarefas do MPI relacionadas aparecem abaixo.</p>
+    <div class="linha"><button class="bt pri" id="btMapa">${mapaSaude ? 'Desligar mapa de saúde' : 'Ver mapa de saúde no 3D'}</button></div>
+    <h3>Origem dos dados</h3>
+    <div class="linha"><select id="iotModo" style="flex:1;min-width:160px"><option value="sim" ${iot.modo === 'sim' ? 'selected' : ''}>Simulação (demonstração)</option><option value="http" ${iot.modo === 'http' ? 'selected' : ''}>Sensores reais (servidor de telemetria)</option></select>
+      <input type="text" id="iotUrl" value="${esc(iot.url)}" style="flex:1;min-width:150px" ${iot.modo === 'sim' ? 'disabled' : ''} title="Endereço que devolve as leituras em JSON"></div>
+    <p class="nota">Estado: <span id="iotConexao">${esc(conexao)}</span></p>
+    <h3>Alertas e manutenção indicada</h3><div id="iotAlertas"></div>
+    <h3>Leituras ao vivo – ${SENSORES.length} sensores em ${Object.keys(COMPS).length} componentes</h3>
+    ${SENSORES.map((s, i) => `${i === 0 || SENSORES[i - 1].grupo !== s.grupo ? `<h3>${esc(s.grupo)}</h3>` : ''}<div class="cartao clic sensor" data-sensor="${s.id}" data-comps="${s.comp.join(',')}">
+      <div class="tit"><span>${esc(s.n)}</span><span class="tag">—</span></div>
+      <div class="leitura"><span class="valor">—</span><svg viewBox="0 0 100 24" preserveAspectRatio="none"><polyline points="" /></svg></div>
+      <div class="sub">${s.comp.map((c) => esc(COMPS[c].n)).join(' · ')}${s.tipo === 'bool' ? '' : ` · alerta ${s.al} · crítico ${s.cr} ${esc(s.un)}`}
+        ${iot.modo === 'sim' ? `<button class="bt mini" data-falha="${s.id}">${falha.has(s.id) ? 'Normalizar' : 'Simular falha'}</button>` : ''}</div></div>`).join('')}
+    <p class="nota">As faixas de alerta e crítico são ilustrativas, apenas para a demonstração. Em uso real, configure-as em <b>sensores.js</b> conforme os limites do fabricante. Envio de sensores reais: veja o README (api/telemetria.php).</p>`;
+  atualizarSensores();
+};
+
 /* ---------- Eventos de interface do painel ---------- */
 conteudo.addEventListener('click', (e) => {
   const t = e.target;
   if (t.matches('input, select, textarea')) return;
+  if (t.id === 'btMapa') { ligarMapaSaude(!mapaSaude); desenhar.sensores(); return; }
+  if (t.dataset.falha) { falha.has(t.dataset.falha) ? falha.delete(t.dataset.falha) : falha.add(t.dataset.falha); t.textContent = falha.has(t.dataset.falha) ? 'Normalizar' : 'Simular falha'; return; }
   if (t.dataset.ex) { ultimoTexto = t.dataset.ex; $('#txt').value = ultimoTexto; mostrarAnalise(); return; }
   if (t.id === 'btMostrar') { ultimoTexto = $('#txt').value; mostrarAnalise(); return; }
   if (t.id === 'btSalvar') { const v = $('#txt').value.trim(); if (v) { const s = guarda.ler('b429_tarefas', []); if (!s.includes(v)) s.unshift(v); guarda.salvar('b429_tarefas', s.slice(0, 30)); ultimoTexto = v; desenhar.descrever(); } return; }
@@ -394,6 +507,8 @@ conteudo.addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.check) { if (t.checked) feitos[t.dataset.check] = 1; else delete feitos[t.dataset.check]; guarda.salvar('b429_check', feitos); t.closest('.item').classList.toggle('feito', t.checked); progresso(); }
   else if (t.id === 'selInsp') { selecionar([]); desenhar.inspecoes(t.value); }
+  else if (t.id === 'iotModo') { iot.modo = t.value; guarda.salvar('b429_iot', iot); falha.clear(); zerarLeituras(); desenhar.sensores(); }
+  else if (t.id === 'iotUrl') { iot.url = t.value.trim() || 'api/telemetria.php'; guarda.salvar('b429_iot', iot); }
   else if (t.id === 'selEvento') { eventoAtual = t.value; selecionar([]); desenhar.eventos(); }
   else if (t.id === 'cMat') salvarControle((st) => { st.mat = t.value; });
   else if (t.id === 'cTsn') salvarControle((st) => { st.tsn = +t.value || 0; });
