@@ -76,6 +76,6 @@
       B('aten_pax', 'Atenuador de energia acionado – assentos dos passageiros', ['assentos_pax'], 'Marca fora do entalhe: substituir o assento; inspeção de pouso duro.') ] }
   ];
   const SENSORES = GRUPOS.flatMap((g) => g.s.map((s) => Object.assign(s, { grupo: g.g })));
-  window.B429.SENSORES = SENSORES;
-  window.B429.GRUPOS_SENSORES = GRUPOS.map((g) => g.g);
+  window.HELI.SENSORES = SENSORES;
+  window.HELI.GRUPOS_SENSORES = GRUPOS.map((g) => g.g);
 })();

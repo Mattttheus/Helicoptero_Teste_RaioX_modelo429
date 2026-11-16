@@ -51,5 +51,5 @@
     { id: 'c800', h: 800, nome: '800 horas', origem: 'mpi', insp: '800h' }
   ];
 
-  Object.assign(window.B429, { ANAC, CONTROLE });
+  Object.assign(window.HELI, { ANAC, CONTROLE });
 })();

@@ -583,5 +583,23 @@
       ['Pás do rotor de cauda', ['rotor_cauda'], 'Trincas, mossas, rasgos, tira de abrasão, bordo de fuga e região posterior da pá.']] }
   ];
 
-  window.B429 = { COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI: { GERAL, INSPECOES, LIMITES, RIN, EVENTOS } };
+  // ---------- Textos do manual interativo deste modelo ----------
+  const INFO = {
+    manual: 'BHT-429-MPI', mm: 'BHT-429-MM', dmc: '429-A-', tolPct: 0.1, tolMax: 100, motorMan: 'manual do motor P&WC (P/N 3071602)', fabMotor: 'P&WC',
+    fonte: 'BHT-429-MPI Issue 2 (3 DEC 2019), Cap. 04 e 05', ilustrativo: false,
+    aviso: 'Modelo ilustrativo e simplificado para demonstração e treinamento. Não substitui o BHT-429-MM / MPI, o manual do motor P&WC nem os regulamentos da ANAC vigentes.',
+    exemploTexto: 'Ex.: trocar o óleo da caixa do rotor de cauda e inspecionar os pitch links',
+    buscaDica: 'Tente o nome da peça, o número da tarefa (ex.: 631001), um painel (ex.: 500G), um P/N ou um regulamento (ex.: 91.409).',
+    notaControle: 'O BHT-429-MPI (Issue 2) não define inspeções de célula de 10, 30, 40 ou 100 h para o Bell 429: elas aparecem aqui como controles do operador (programa de manutenção aprovado, manual do motor P&WC, kits, AD/ASB repetitivas ou RBAC 91.409). Ajuste ao programa da sua aeronave.',
+    tolerancia: 'Tolerância BHT para inspeções programadas: 10% do intervalo, até 100 h / 30 dias, o que for menor. Não se aplica a peças com vida limite.',
+    tituloLimites: 'Limites de aeronavegabilidade (Cap. 04)',
+    notaLimites: 'Vida máxima obrigatória em horas, anos ou RIN. Peças fora da lista têm vida ilimitada. O limite vale para os dash numbers sucessivos, salvo indicação.',
+    limitesExtra: { s: 'Limite de inspeção (Tabela 2)', i: [['Main Rotor Yoke Assembly', '429-010-103-101', 'Inspeção a cada 50 h', ['cubo_rp']]] },
+    notaRin: 'RIN (Retirement Index Number): o piloto registra os eventos e a manutenção soma os fatores de cada componente – veja a calculadora na aba Controle.',
+    notaEventos: 'Componentes removidos recebem etiqueta “removido de serviço por …” e são avaliados em conjunto. Em caso de dúvida, contatar a Product Support Engineering da Bell.',
+    prepNota: '429-MM Cap. 53', lubNota: '429-MM Cap. 12'
+  };
+  for (const id of ['motor_1', 'motor_2', 'entrada_ar', 'escapamento', 'gerador']) COMPS[id].motor = 1;
+
+  window.HELI = { INFO, COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI: { GERAL, INSPECOES, LIMITES, RIN, EVENTOS } };
 })();

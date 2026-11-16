@@ -1,2 +1,6 @@
 # leituras de sensores gravadas pelo servidor local (não versionar)
 api/dados/
+
+# manuais oficiais em PDF (material proprietário: não versionar)
+manuais/*
+!manuais/LEIA-ME.txt

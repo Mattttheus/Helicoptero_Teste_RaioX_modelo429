@@ -3,9 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bell 429 – Manual de Manutenção Interativo 3D</title>
-  <meta name="description" content="Demonstração: modelo 3D interativo do Bell 429 ligado às inspeções do BHT-429-MPI, controle por horas e regulamentação ANAC.">
+  <title>Manutenção Interativa</title>
+  <meta name="description" content="Manutenção Interativa: manuais de manutenção interativos 3D dos helicópteros Bell 505, 429, 206 e 407, com motores 3D editáveis, mapa de sensores e testes de partida, voo e estresse.">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Endereços antigos do manual do 429 (ex.: /#sensores) continuam funcionando
+    (function () {
+      var abas = ['descrever', 'inspecoes', 'sensores', 'controle', 'limites', 'eventos', 'anac', 'sistemas', 'dados'], h = location.hash.slice(1);
+      if (abas.indexOf(h) >= 0) location.replace('manual.html?m=429#' + h);
+    })();
+  </script>
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -13,55 +20,77 @@
     } }
   </script>
 </head>
-<body>
-  <div id="app">
-    <aside id="painel">
-      <header>
-        <div class="marca"><span class="selo">429</span>
-          <div><h1>Manual de Manutenção Interativo</h1><p>Bell 429 · demonstração 3D · base BHT-429-MPI</p></div>
-        </div>
-        <div id="buscaCx"><input type="search" id="busca" placeholder="Buscar peça, tarefa, nº IMRR, sensor, P/N, RBAC…  ( / )" autocomplete="off"></div>
-      </header>
-      <nav id="abas" role="tablist" aria-label="Seções do manual">
-        <button data-aba="descrever" class="ativa" title="Descrever a manutenção (Alt+1)"><i>✎</i><span>Descrever</span></button>
-        <button data-aba="inspecoes" title="Inspeções programadas (Alt+2)"><i>☑</i><span>Inspeções</span><b class="selo-n" hidden></b></button>
-        <button data-aba="sensores" title="Sensores IoT (Alt+3)"><i>∿</i><span>Sensores</span><b class="selo-n" hidden></b></button>
-        <button data-aba="controle" title="Controle por horas (Alt+4)"><i>◔</i><span>Controle</span><b class="selo-n" hidden></b></button>
-        <button data-aba="limites" title="Limites de vida (Alt+5)"><i>≤</i><span>Limites</span></button>
-        <button data-aba="eventos" title="Inspeções após evento (Alt+6)"><i>⚠</i><span>Eventos</span></button>
-        <button data-aba="anac" title="Regulamentação ANAC (Alt+7)"><i>§</i><span>ANAC</span></button>
-        <button data-aba="sistemas" title="Sistemas por ATA (Alt+8)"><i>▦</i><span>Sistemas</span></button>
-        <button data-aba="dados" title="Exportar, importar e apagar dados (Alt+9)"><i>⇅</i><span>Dados</span></button>
-      </nav>
-      <div id="conteudo"></div>
-      <footer>Modelo ilustrativo e simplificado para demonstração e treinamento. Não substitui o BHT-429-MM / MPI, o manual do motor P&amp;WC nem os regulamentos da ANAC vigentes.</footer>
-    </aside>
-
-    <main id="vista">
-      <div id="barra">
-        <button id="btPainel" title="Esconde ou mostra o painel do manual">Painel</button>
-        <button id="btSaude" title="Pinta os componentes pela condição lida nos sensores">Saúde</button>
-        <button id="btRaiox" title="Deixa o revestimento transparente">Raio-X</button>
-        <button id="btGirar" title="Liga/desliga a rotação dos rotores">Girar rotores</button>
-        <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
+<body class="pagina-painel">
+  <div class="painel-ini">
+    <section class="lado">
+      <div class="marca-grande"><span class="selo">MI</span>
+        <div><h1>Manutenção Interativa</h1><p>Manual interativo 3D de cada modelo · motores 3D editáveis com mapa de sensores · testes de partida, voo e estresse</p></div>
       </div>
-      <div id="selbar" hidden></div>
-      <div id="rotulos"></div>
-      <div id="dica" hidden></div>
-      <div id="ajuda">Arraste para girar · role para aproximar · clique numa peça para ver a ficha</div>
-      <div id="erro" hidden></div>
-    </main>
+      <div class="modelos" id="modelos"></div>
+      <div>
+        <h3>Motorização de referência</h3>
+        <table class="tabela-mot">
+          <tr><th>Helicóptero</th><th>Motor</th><th>Configuração</th><th>Potência aprox.</th></tr>
+          <tr><td>Bell 407 / 407GXi</td><td>Rolls-Royce M250-C47B / M250-C47E/4</td><td>1 turboeixo (monomotor)</td><td>813 a 862 SHP</td></tr>
+          <tr><td>Bell 206 JetRanger</td><td>Rolls-Royce / Allison 250-C20J</td><td>1 turboeixo (monomotor)</td><td>~420 SHP</td></tr>
+          <tr><td>Bell 505 Jet Ranger X</td><td>Safran Arrius 2R (duplo FADEC)</td><td>1 turboeixo (monomotor)</td><td>~505 SHP</td></tr>
+          <tr><td>Bell 429 GlobalRanger</td><td>Pratt &amp; Whitney Canada PW207D1</td><td>2 turboeixos (bimotor)</td><td>~625 SHP por motor</td></tr>
+          <tr class="nota"><td>Bell 412</td><td>P&amp;WC PT6T-3D / PT6T-9 Twin-Pac</td><td>2 turboeixos acoplados</td><td>~1.800 SHP (fora do escopo atual)</td></tr>
+        </table>
+      </div>
+      <p class="nota">Material de demonstração e treinamento. Os modelos 3D são ilustrativos. O Bell 429 usa dados do BHT-429-MPI; os demais estão como <b>prévia</b> (fontes públicas e fichas EASA dos motores) até a incorporação dos manuais oficiais colocados na pasta <b>manuais/</b>. Nada aqui substitui os manuais do fabricante nem os RBAC.</p>
+    </section>
+    <section class="vitrine" id="vitrine">
+      <div class="legenda-vit"><b id="vitNome">—</b><span id="vitInfo"></span></div>
+    </section>
   </div>
+  <div id="erro" hidden></div>
 
-  <script src="dados.js"></script>
-  <script src="anac.js"></script>
-  <script src="sensores.js"></script>
-  <script type="module" src="app.js"></script>
+  <script src="modelos/catalogo.js"></script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { construirHelicoptero } from './modelo.js';
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const CAT = window.CATALOGO;
+    document.getElementById('modelos').innerHTML = CAT.map((c) => `<article class="modelo" data-id="${c.id}" style="--cor:${c.cor}">
+      <h2>${esc(c.nome)}</h2><div class="mot">${esc(c.motor)}</div>
+      <dl><dt>Configuração</dt><dd>${esc(c.config)}</dd><dt>Potência</dt><dd>${esc(c.potencia)}</dd><dt>Controle</dt><dd>${esc(c.fadec)}</dd><dt>Rotor</dt><dd>${esc(c.rotor)}</dd></dl>
+      <div class="acoes"><a class="bt pri" href="manual.html?m=${c.id}">Manual 3D</a><a class="bt" href="motor.html?m=${c.id}">Motor 3D</a></div>
+      <div class="base">${esc(c.base)}</div></article>`).join('');
+
+    // Vitrine 3D: mostra o modelo sob o mouse girando lentamente
+    const vit = document.getElementById('vitrine');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); vit.prepend(renderer.domElement);
+    const cena = new THREE.Scene(), camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
+    const ctl = new OrbitControls(camera, renderer.domElement); ctl.enableDamping = true; ctl.autoRotate = true; ctl.autoRotateSpeed = 0.9; ctl.enablePan = false;
+    cena.add(new THREE.HemisphereLight(0xdfe9ff, 0x2a2f38, 1.15));
+    const sol = new THREE.DirectionalLight(0xffffff, 1.5); sol.position.set(6, 12, 8); cena.add(sol);
+    const grade = new THREE.GridHelper(30, 30, 0x2b3646, 0x1a222e); cena.add(grade);
+    let atual = null, idAtual = null;
+    function mostrar(id) {
+      if (id === idAtual) return; idAtual = id;
+      if (atual) { cena.remove(atual.raiz); atual.raiz.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+      atual = construirHelicoptero(id); cena.add(atual.raiz);
+      const c = CAT.find((x) => x.id === id);
+      camera.position.set(9, 4.8, 11); ctl.target.set(-1.8, 1.6, 0);
+      document.getElementById('vitNome').textContent = c.nome;
+      document.getElementById('vitInfo').textContent = `${c.motor} · ${c.config} · ${c.potencia} · rotor de ${c.rotor}`;
+      document.querySelectorAll('.modelo').forEach((m) => m.classList.toggle('on', m.dataset.id === id));
+    }
+    document.getElementById('modelos').addEventListener('pointerover', (e) => { const m = e.target.closest('.modelo'); if (m) mostrar(m.dataset.id); });
+    document.getElementById('modelos').addEventListener('click', (e) => { const m = e.target.closest('.modelo'); if (m && !e.target.closest('a')) location.href = 'manual.html?m=' + m.dataset.id; });
+    function ajustar() { const w = vit.clientWidth, h = vit.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    new ResizeObserver(ajustar).observe(vit); ajustar();
+    mostrar(CAT[0].id);
+    const rel = new THREE.Clock();
+    renderer.setAnimationLoop(() => { const dt = rel.getDelta(); for (const r of atual.rotores) r.obj.rotation[r.eixo] += dt * r.vel * 0.6; ctl.update(); renderer.render(cena, camera); });
+  </script>
   <script>
-    // Aviso amigável se abrir direto do disco (módulos exigem servidor: WAMP, GitHub Pages etc.)
     if (location.protocol === 'file:') {
       var e = document.getElementById('erro'); e.hidden = false;
-      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/</b> (WAMP ligado) ou pelo GitHub Pages. Aberto direto do disco, o navegador bloqueia os módulos 3D.';
+      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/</b> (WAMP ligado) ou pelo GitHub Pages.';
     }
   </script>
 </body>

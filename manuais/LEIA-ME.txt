@@ -1,0 +1,10 @@
+MANUTENÇÃO INTERATIVA – pasta dos manuais oficiais (NÃO vai para o git nem para o GitHub Pages)
+
+Coloque aqui os PDFs de cada modelo, um modelo por pasta:
+  manuais/505/  Bell 505 Jet Ranger X  – BHT-505-MM / MPI / FM e manual do motor Safran Arrius 2R
+  manuais/206/  Bell 206B JetRanger    – BHT-206B-MM / FM e manual do motor Rolls-Royce 250-C20J
+  manuais/407/  Bell 407 / 407GXi      – BHT-407-MM / MPI / FM e manual do motor Rolls-Royce M250-C47B / C47E/4
+  manuais/429/  Bell 429 GlobalRanger  – BHT-429-MM / MPI e manual do motor P&WC PW207D1
+
+As tarefas, intervalos, limites e procedimentos extraídos dos PDFs vão para
+modelos/<modelo>/dados.js (e motor.js). Os PDFs em si ficam só nesta pasta, por serem material proprietário.

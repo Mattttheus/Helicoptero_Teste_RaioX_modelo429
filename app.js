@@ -1,15 +1,32 @@
-// Bell 429 – manual interativo: cena 3D, seleção de componentes e abas do manual.
+// Manutenção Interativa – manual interativo de cada modelo: cena 3D, seleção de componentes e abas do manual.
+// O modelo vem da URL (manual.html?m=505); os dados ficam em modelos/<id>/ (window.HELI).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { construirHelicoptero } from './modelo.js';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js';
 
-const { COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI, ANAC, CONTROLE, SENSORES } = window.B429;
+const CFG = modeloAtual();
+try { await carregarScripts(CFG.arquivos); } catch (e) { mostrarErro(e.message); throw e; }
+const { INFO, COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI, ANAC, CONTROLE, SENSORES } = window.HELI;
+const K = CFG.chave; // prefixo das chaves salvas no navegador (o 429 mantém "b429_" e os dados já registrados)
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const guarda = {
   ler(k, pad) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : pad; } catch { return pad; } },
   salvar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* armazenamento indisponível */ } }
 };
+
+/* =====================================================================
+   Identidade do modelo na página
+   ===================================================================== */
+document.title = `${CFG.nome} – Manual Interativo · Manutenção Interativa`;
+document.documentElement.style.setProperty('--acento', CFG.cor);
+$('#selo').textContent = CFG.curto;
+$('#subModelo').textContent = `${CFG.nome} · ${CFG.motor} · ${INFO.ilustrativo ? 'prévia com fontes públicas' : 'base ' + INFO.manual}`;
+$('#rodape').textContent = INFO.aviso;
+$('#btMotor').href = 'motor.html?m=' + CFG.id;
+$('#trocaModelo').innerHTML = (window.CATALOGO || []).map((c) => `<option value="${c.id}" ${c.id === CFG.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('');
+$('#trocaModelo').onchange = (e) => { location.href = 'manual.html?m=' + e.target.value + location.hash; };
 
 /* =====================================================================
    Cena 3D
@@ -20,7 +37,8 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 vista.prepend(renderer.domElement);
 const cena = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
-const VISTA_GERAL = { pos: new THREE.Vector3(9.5, 5.2, 12.5), alvo: new THREE.Vector3(-1.6, 1.8, 0) };
+const heli = construirHelicoptero(CFG.id);
+const VISTA_GERAL = { pos: new THREE.Vector3(...heli.vista.pos), alvo: new THREE.Vector3(...heli.vista.alvo) };
 camera.position.copy(VISTA_GERAL.pos);
 const controles = new OrbitControls(camera, renderer.domElement);
 controles.target.copy(VISTA_GERAL.alvo); controles.enableDamping = true; controles.minDistance = 1.2; controles.maxDistance = 45;
@@ -30,7 +48,6 @@ const sol = new THREE.DirectionalLight(0xffffff, 1.5); sol.position.set(6, 12, 8
 const contra = new THREE.DirectionalLight(0x9fc0ff, 0.5); contra.position.set(-8, 4, -9); cena.add(contra);
 const grade = new THREE.GridHelper(40, 40, 0x2b3646, 0x1a222e); grade.position.set(-2, 0, 0); cena.add(grade);
 
-const heli = construirHelicoptero();
 cena.add(heli.raiz);
 heli.raiz.updateMatrixWorld(true);
 const info = {};
@@ -91,7 +108,7 @@ function focar() {
 function vistaGeral(animar = true) {
   const dir = VISTA_GERAL.pos.clone().sub(VISTA_GERAL.alvo).normalize();
   const fv = THREE.MathUtils.degToRad(camera.fov) / 2, fh = Math.atan(Math.tan(fv) * camera.aspect);
-  const pos = VISTA_GERAL.alvo.clone().addScaledVector(dir, 5.3 / Math.sin(Math.min(fv, fh)));
+  const pos = VISTA_GERAL.alvo.clone().addScaledVector(dir, heli.vista.raio / Math.sin(Math.min(fv, fh)));
   if (animar) voar(pos, VISTA_GERAL.alvo.clone()); else { camera.position.copy(pos); controles.target.copy(VISTA_GERAL.alvo); }
 }
 
@@ -117,7 +134,8 @@ function barraSelecao() {
   if (!sel.size) { el.hidden = true; return; }
   el.hidden = false;
   const nomes = [...sel].map((id) => COMPS[id].n);
-  el.innerHTML = `<b>Onde vamos mexer:</b> ${esc(nomes.slice(0, 4).join(' · '))}${nomes.length > 4 ? ` · +${nomes.length - 4}` : ''}<button class="bt mini" id="btLimpar">Limpar</button>`;
+  const temMotor = [...sel].some((id) => COMPS[id].motor);
+  el.innerHTML = `<b>Onde vamos mexer:</b> ${esc(nomes.slice(0, 4).join(' · '))}${nomes.length > 4 ? ` · +${nomes.length - 4}` : ''}<button class="bt mini" id="btLimpar">Limpar</button>${temMotor ? `<a class="bt mini" href="motor.html?m=${CFG.id}">Motor 3D ›</a>` : ''}`;
 }
 $('#selbar').addEventListener('click', (e) => { if (e.target.id === 'btLimpar') { selecionar([]); marcarAtivo(null); } });
 
@@ -165,7 +183,7 @@ renderer.setAnimationLoop(() => {
     camera.position.lerpVectors(voo.p0, voo.p1, s); controles.target.lerpVectors(voo.a0, voo.a1, s);
     if (k >= 1) voo = null;
   }
-  if (girar) { heli.rotorP.rotation.y += dt * 5; heli.rotorC.rotation.z += dt * 22; }
+  if (girar) for (const r of heli.rotores) r.obj.rotation[r.eixo] += dt * r.vel;
   matDestaque.emissiveIntensity = 0.55 + 0.35 * Math.sin(t * 4);
   matSaude.cr.emissiveIntensity = 0.6 + 0.5 * Math.sin(t * 6);
   controles.update(); renderer.render(cena, camera); posicionarRotulos();
@@ -239,7 +257,7 @@ function analisar(texto) {
 /* =====================================================================
    Blocos de HTML reutilizados
    ===================================================================== */
-const feitos = guarda.ler('b429_check', {});
+const feitos = guarda.ler(K + '_check', {});
 function itemTarefa(x, { check = false, origem = false } = {}) {
   const [num, desc, acesso, zonas] = x.t, chave = x.ins.id + ':' + num, ok = !!feitos[chave];
   return `<div class="item${ok && check ? ' feito' : ''}${x.comps.length ? '' : ' semloc'}" data-comps="${x.comps.join(',')}">
@@ -287,7 +305,7 @@ let INDICE = null, resultados = [];
 function montarIndice() {
   const it = [];
   for (const id in COMPS) it.push({ tipo: 'Componente', tit: COMPS[id].n, sub: `ATA ${COMPS[id].ata} · zona ${COMPS[id].z}`, comps: [id], ir: { ficha: id } });
-  for (const x of TAREFAS) it.push({ tipo: 'Tarefa do MPI', tit: `${x.t[0]} — ${x.t[1]}`, sub: `${x.ins.nome} · acesso ${x.t[2]} · zona ${x.t[3]}`, comps: x.comps, ir: { insp: x.ins.id } });
+  for (const x of TAREFAS) it.push({ tipo: 'Tarefa', tit: `${x.t[0]} — ${x.t[1]}`, sub: `${x.ins.nome} · acesso ${x.t[2]} · zona ${x.t[3]}`, comps: x.comps, ir: { insp: x.ins.id } });
   for (const s of SENSORES) it.push({ tipo: 'Sensor', tit: s.n, sub: s.comp.map((c) => COMPS[c].n).join(' · '), comps: s.comp, ir: { aba: 'sensores' } });
   for (const g of MPI.LIMITES) for (const i of g.i) it.push({ tipo: 'Limite de vida', tit: `${i[0]} · ${i[1]}`, sub: `${g.s} · ${i[2]}`, comps: i[3] || g.c || [], ir: { aba: 'limites' } });
   for (const e of MPI.EVENTOS) it.push({ tipo: 'Evento', tit: e.n, sub: e.r, comps: [...new Set(e.a.flatMap((a) => a[1]))], ir: { evento: e.id } });
@@ -301,16 +319,17 @@ desenhar.busca = () => {
   conteudo.innerHTML = `<h2>Busca: ${resultados.length}${resultados.length === 60 ? '+' : ''} resultado${resultados.length === 1 ? '' : 's'}</h2>
     ${resultados.length ? resultados.map((o, i) => `<div class="cartao clic" data-comps="${o.comps.join(',')}"><div class="res-tipo">${o.tipo}</div>
       <div class="tit"><span>${esc(o.tit)}</span><button class="bt mini" data-res="${i}">Abrir ›</button></div><div class="sub">${esc(o.sub.length > 150 ? o.sub.slice(0, 150) + '…' : o.sub)}</div></div>`).join('')
-    : '<p class="nota">Nada encontrado. Tente o nome da peça, o número da tarefa (ex.: 631001), um painel (ex.: 500G), um P/N ou um regulamento (ex.: 91.409).</p>'}`;
+    : `<p class="nota">Nada encontrado. ${esc(INFO.buscaDica)}</p>`}`;
 };
 $('#busca').addEventListener('input', (e) => { if (e.target.value.trim()) { abaAtual = 'busca'; document.querySelectorAll('#abas button').forEach((b) => b.classList.remove('ativa')); desenhar.busca(); } else abrirAba('descrever'); });
 
 /* ---------- Descrever ---------- */
 let ultimoTexto = '';
 desenhar.descrever = () => {
-  const salvas = guarda.ler('b429_tarefas', []);
-  conteudo.innerHTML = `<h2>Descreva a manutenção a ser realizada</h2>
-    <textarea id="txt" placeholder="Ex.: trocar o óleo da caixa do rotor de cauda e inspecionar os pitch links">${esc(ultimoTexto)}</textarea>
+  const salvas = guarda.ler(K + '_tarefas', []);
+  conteudo.innerHTML = `${INFO.ilustrativo ? `<div class="cartao previa"><b>Prévia – ${esc(CFG.nome)}</b><div class="sub">Conteúdo montado com fontes públicas (${esc(CFG.base)}). Coloque os manuais oficiais em <b>manuais/${CFG.id}/</b> para incorporar tarefas, intervalos e procedimentos do fabricante.</div></div>` : ''}
+    <h2>Descreva a manutenção a ser realizada</h2>
+    <textarea id="txt" placeholder="${esc(INFO.exemploTexto)}">${esc(ultimoTexto)}</textarea>
     <div class="linha"><button class="bt pri" id="btMostrar">Mostrar no modelo</button><button class="bt" id="btSalvar">Salvar tarefa</button><span class="nota">Ctrl+Enter</span></div>
     <h3>Exemplos</h3><div class="chips">${EXEMPLOS.map((x) => `<span class="chip" data-ex="${esc(x)}">${esc(x)}</span>`).join('')}</div>
     <div id="resultado"></div>
@@ -322,7 +341,7 @@ function mostrarAnalise(foco = true) {
   selecionar(r.ids, { foco });
   if (!r.ids.length) { el.innerHTML = `<h3>Onde vamos mexer</h3><p class="nota">Não reconheci nenhum componente nesse texto. Use o nome do sistema ou da peça (ex.: “transmissão”, “rotor de cauda”, “bateria”, “tubo transversal”) ou o capítulo ATA (ex.: “ATA 63”).</p>`; return; }
   el.innerHTML = `<h3>Onde vamos mexer (${r.ids.length})</h3>${r.ids.map((id) => cartaoComp(id, r.termos[id])).join('')}
-    ${r.rel.length ? `<h3>Tarefas do BHT-429-MPI relacionadas</h3>${r.rel.map((x) => itemTarefa(x, { origem: true })).join('')}` : ''}`;
+    ${r.rel.length ? `<h3>Tarefas do ${esc(INFO.manual)} relacionadas</h3>${r.rel.map((x) => itemTarefa(x, { origem: true })).join('')}` : ''}`;
 }
 
 /* ---------- Inspeções ---------- */
@@ -333,14 +352,14 @@ desenhar.inspecoes = (id) => {
   const todos = [...new Set(lista.flatMap((x) => x.comps))];
   conteudo.innerHTML = `<h2>Inspeções programadas e especiais</h2>
     <select id="selInsp">${MPI.INSPECOES.map((i) => `<option value="${i.id}" ${i === ins ? 'selected' : ''}>${esc(i.nome)}</option>`).join('')}</select>
-    <p class="nota">${esc(ins.nota)} · DMC 429-A-${esc(ins.dmc)}</p>
+    <p class="nota">${esc(ins.nota)}${ins.dmc ? ` · DMC ${esc(INFO.dmc)}${esc(ins.dmc)}` : ''}</p>
     <div class="prog"><i id="barraProg"></i></div><p class="nota" id="txtProg"></p>
     <div class="linha"><button class="bt pri" data-comps="${todos.join(',')}">Mostrar todas as áreas</button><button class="bt" id="btMarcar">Marcar todas</button><button class="bt" id="btZerar">Zerar</button><button class="bt" data-dado="imprimir">Imprimir</button></div>
     <div class="linha" id="filtroCx"><input type="text" id="filtroInsp" placeholder="Filtrar tarefas (texto, nº, painel, zona)" style="flex:1;min-width:150px"><label class="nota"><input type="checkbox" id="soPend"> só pendentes</label></div>
-    ${ins.prep ? `<h3>Preparação – painéis a remover</h3><p class="nota">${esc(ins.prep)} (429-MM Cap. 53)</p>` : ''}
+    ${ins.prep ? `<h3>Preparação – painéis a remover</h3><p class="nota">${esc(ins.prep)} (${esc(INFO.prepNota)})</p>` : ''}
     ${ins.g.map((g) => `<h3>${esc(g.s)}</h3>${lista.filter((x) => x.g === g).map((x) => itemTarefa(x, { check: true })).join('')}`).join('')}
     <h3>Itens gerais (toda inspeção)</h3>${MPI.GERAL.map((t, i) => { const k = ins.id + ':G' + i; return `<div class="item${feitos[k] ? ' feito' : ''}"><input type="checkbox" data-check="${k}" ${feitos[k] ? 'checked' : ''}><div class="desc">${esc(t)}</div></div>`; }).join('')}
-    <p class="nota">Tolerância BHT para inspeções programadas: 10% do intervalo, até 100 h / 30 dias, o que for menor. Não se aplica a peças com vida limite.</p>`;
+    <p class="nota">${esc(INFO.tolerancia)}</p>`;
   progresso();
 };
 function progresso() {
@@ -363,10 +382,10 @@ function filtrarInspecao() {
 }
 
 /* ---------- Controle: cálculo compartilhado (tela, selo do menu e exportação) ---------- */
-const lerCtrl = () => Object.assign({ mat: '', tsn: 0, media: 30, ult: {}, extra: [] }, guarda.ler('b429_ctrl', {}));
+const lerCtrl = () => Object.assign({ mat: '', tsn: 0, media: 30, ult: {}, extra: [] }, guarda.ler(K + '_ctrl', {}));
 function linhasControle(st) {
   return [...CONTROLE, ...st.extra].sort((a, b) => a.h - b.h).map((l) => {
-    const ult = +st.ult[l.id] || 0, prox = ult + l.h, resta = prox - st.tsn, tol = l.origem === 'mpi' ? Math.min(l.h * 0.1, 100) : 0;
+    const ult = +st.ult[l.id] || 0, prox = ult + l.h, resta = prox - st.tsn, tol = l.origem === 'mpi' ? Math.min(l.h * (INFO.tolPct || 0), INFO.tolMax ?? 100) : 0;
     const sit = st.ult[l.id] == null ? ['', 'INFORMAR ÚLTIMA EXECUÇÃO'] : resta < -tol ? ['er', 'VENCIDA'] : resta < 0 ? ['al', 'NA TOLERÂNCIA'] : resta <= l.h * 0.1 ? ['al', 'PRÓXIMA'] : ['ok', 'EM DIA'];
     return { l, ult, prox, resta, sit, uso: Math.max(0, Math.min(1, (st.tsn - ult) / l.h)) };
   });
@@ -380,7 +399,7 @@ desenhar.controle = () => {
   const corpo = linhasControle(st).map(({ l, ult, prox, resta, sit, uso }) => {
     const prev = st.media > 0 && resta > 0 ? new Date(hoje.getTime() + (resta / st.media) * 30 * 864e5).toLocaleDateString('pt-BR') : '—';
     return `<div class="cartao"><div class="tit"><span>${esc(l.nome)}</span><span class="tag ${sit[0]}">${sit[1]}</span></div>
-      <div class="sub">${l.origem === 'mpi' ? 'BHT-429-MPI' : 'Definida pelo operador' + (l.obs ? ' · ' + esc(l.obs) : '')} · vence com <b>${prox.toFixed(1)} h</b> · restam <b>${resta.toFixed(1)} h</b> · previsão ${prev}</div>
+      <div class="sub">${l.origem === 'mpi' ? esc(INFO.manual) : 'Definida pelo operador' + (l.obs ? ' · ' + esc(l.obs) : '')} · vence com <b>${prox.toFixed(1)} h</b> · restam <b>${resta.toFixed(1)} h</b> · previsão ${prev}</div>
       <div class="prog ${sit[0] === 'ok' ? '' : sit[0]}"><i style="width:${uso * 100}%"></i></div>
       <div class="linha"><span class="nota">Última execução (h):</span><input type="number" step="0.1" style="width:96px" data-ult="${l.id}" value="${st.ult[l.id] ?? ''}" placeholder="—">
         <button class="bt mini" data-feita="${l.id}">Feita agora</button>${l.insp ? `<button class="bt mini" data-insp="${l.insp}">Ver tarefas</button>` : ''}${l.extra ? `<button class="bt mini" data-remover="${l.id}">Remover</button>` : ''}</div></div>`;
@@ -389,26 +408,27 @@ desenhar.controle = () => {
     <div class="grade"><div><label>Matrícula</label><input type="text" id="cMat" value="${esc(st.mat)}" placeholder="PR-XXX"></div>
       <div><label>Horas totais (célula)</label><input type="number" step="0.1" id="cTsn" value="${st.tsn}"></div>
       <div><label>Média h/mês</label><input type="number" step="1" id="cMedia" value="${st.media}"></div></div>
-    <p class="nota">A previsão de data usa a média de horas voadas por mês (manutenção preditiva de calendário). Tolerância de 10% (máx. 100 h) só nas inspeções do MPI.</p>
+    <p class="nota">A previsão de data usa a média de horas voadas por mês (manutenção preditiva de calendário).${INFO.tolPct ? ` Tolerância de ${INFO.tolPct * 100}% (máx. ${INFO.tolMax ?? 100} h) só nas inspeções do ${esc(INFO.manual)}.` : ''}</p>
     ${corpo}
     <h3>Adicionar intervalo do operador</h3>
     <div class="linha"><input type="text" id="nNome" placeholder="Nome (ex.: lavagem de compressor)" style="flex:1;min-width:150px"><input type="number" id="nHoras" placeholder="horas" style="width:90px"><button class="bt" id="btAdd">Adicionar</button></div>
-    <p class="nota">O BHT-429-MPI (Issue 2) não define inspeções de célula de 10, 30, 40 ou 100 h para o Bell 429: elas aparecem aqui como controles do operador (programa de manutenção aprovado, manual do motor P&amp;WC, kits, AD/ASB repetitivas ou RBAC 91.409). Ajuste ao programa da sua aeronave.</p>
-    <h3>Controle por RIN (trem de pouso de esquis)</h3>
+    <p class="nota">${esc(INFO.notaControle)}</p>
+    ${MPI.RIN.length ? `<h3>Controle por RIN (trem de pouso de esquis)</h3>
     <div class="grade"><div><label>Pousos normais</label><input type="number" id="rN" value="${st.rin?.[0] ?? 0}"></div><div><label>Pousos corridos</label><input type="number" id="rC" value="${st.rin?.[1] ?? 0}"></div><div><label>Autorrotações</label><input type="number" id="rA" value="${st.rin?.[2] ?? 0}"></div></div>
     ${MPI.RIN.map((r) => { const v = r.f[0] * (st.rin?.[0] || 0) + r.f[1] * (st.rin?.[1] || 0) + r.f[2] * (st.rin?.[2] || 0), u = Math.min(1, v / r.lim);
       return `<div class="cartao clic" data-comps="${r.id}"><div class="tit"><span>${esc(r.n)}</span><span class="tag ${u >= 1 ? 'er' : u > 0.9 ? 'al' : 'ok'}">${v.toLocaleString('pt-BR')} / ${r.lim.toLocaleString('pt-BR')} RIN</span></div>
-        <div class="sub">+${r.f[0]} por pouso normal · +${r.f[1]} por pouso corrido · +${r.f[2]} por autorrotação</div><div class="prog ${u >= 1 ? 'er' : u > 0.9 ? 'al' : ''}"><i style="width:${u * 100}%"></i></div></div>`; }).join('')}`;
+        <div class="sub">+${r.f[0]} por pouso normal · +${r.f[1]} por pouso corrido · +${r.f[2]} por autorrotação</div><div class="prog ${u >= 1 ? 'er' : u > 0.9 ? 'al' : ''}"><i style="width:${u * 100}%"></i></div></div>`; }).join('')}` : ''}`;
 };
-function salvarControle(mut) { const st = lerCtrl(); mut(st); guarda.salvar('b429_ctrl', st); desenhar.controle(); }
+function salvarControle(mut) { const st = lerCtrl(); mut(st); guarda.salvar(K + '_ctrl', st); desenhar.controle(); }
 
 /* ---------- Limites de aeronavegabilidade ---------- */
 desenhar.limites = () => {
-  conteudo.innerHTML = `<h2>Limites de aeronavegabilidade (Cap. 04)</h2>
-    <p class="nota">Vida máxima obrigatória em horas, anos ou RIN. Peças fora da lista têm vida ilimitada. O limite vale para os dash numbers sucessivos, salvo indicação.</p>
+  const ex = INFO.limitesExtra;
+  conteudo.innerHTML = `<h2>${esc(INFO.tituloLimites)}</h2>
+    <p class="nota">${esc(INFO.notaLimites)}</p>
     ${MPI.LIMITES.map((g) => `<h3>${esc(g.s)}</h3><table><tr><th>Peça</th><th>P/N</th><th>Vida</th></tr>${g.i.map((i) => `<tr class="clic" data-comps="${(i[3] || g.c || []).join(',')}"><td>${esc(i[0])}</td><td class="pn">${esc(i[1])}</td><td><b>${esc(i[2])}</b></td></tr>`).join('')}</table>`).join('')}
-    <h3>Limite de inspeção (Tabela 2)</h3><table><tr class="clic" data-comps="cubo_rp"><td>Main Rotor Yoke Assembly</td><td class="pn">429-010-103-101</td><td><b>Inspeção a cada 50 h</b></td></tr></table>
-    <p class="nota">RIN (Retirement Index Number): o piloto registra os eventos e a manutenção soma os fatores de cada componente – veja a calculadora na aba Controle.</p>`;
+    ${ex ? `<h3>${esc(ex.s)}</h3><table>${ex.i.map((i) => `<tr class="clic" data-comps="${(i[3] || []).join(',')}"><td>${esc(i[0])}</td><td class="pn">${esc(i[1])}</td><td><b>${esc(i[2])}</b></td></tr>`).join('')}</table>` : ''}
+    ${INFO.notaRin ? `<p class="nota">${esc(INFO.notaRin)}</p>` : ''}`;
 };
 
 /* ---------- Eventos (inspeções condicionais) ---------- */
@@ -421,14 +441,14 @@ desenhar.eventos = () => {
     <div class="linha"><button class="bt pri" data-comps="${todos.join(',')}">Mostrar todas as áreas afetadas</button></div>
     <h3>Áreas a inspecionar</h3>
     ${ev.a.map((a) => `<div class="cartao clic" data-comps="${a[1].join(',')}"><div class="tit"><span>${esc(a[0])}</span></div><div class="sub">${esc(a[2])}</div></div>`).join('')}
-    <p class="nota">Componentes removidos recebem etiqueta “removido de serviço por …” e são avaliados em conjunto. Em caso de dúvida, contatar a Product Support Engineering da Bell.</p>`;
+    <p class="nota">${esc(INFO.notaEventos)}</p>`;
 };
 
 /* ---------- ANAC ---------- */
 desenhar.anac = () => {
   conteudo.innerHTML = `<h2>Regulamentação ANAC e controle de manutenção</h2>
     <p class="nota">Resumo orientativo para treinamento – não é texto legal. Consulte sempre a emenda vigente dos RBAC e das Instruções Suplementares em anac.gov.br.</p>
-    ${ANAC.map((g) => `<h3>${esc(g.g)}</h3>${g.i.map((i) => `<div class="cartao${i.c ? ' clic' : ''}" ${i.c ? `data-comps="${i.c.join(',')}"` : ''}><div class="tit"><span>${esc(i.ref)}</span>${i.l ? `<span class="tag lar" data-insp="${i.l}">ver no MPI</span>` : ''}</div><div class="sub">${esc(i.t)}</div></div>`).join('')}`).join('')}`;
+    ${ANAC.map((g) => `<h3>${esc(g.g)}</h3>${g.i.map((i) => `<div class="cartao${i.c ? ' clic' : ''}" ${i.c ? `data-comps="${i.c.join(',')}"` : ''}><div class="tit"><span>${esc(i.ref)}</span>${i.l ? `<span class="tag lar" data-insp="${i.l}">ver inspeção</span>` : ''}</div><div class="sub">${esc(i.t)}</div></div>`).join('')}`).join('')}`;
 };
 
 /* ---------- Sistemas ---------- */
@@ -438,17 +458,43 @@ desenhar.sistemas = (idSel) => {
   if (idSel) {
     const rel = TAREFAS.filter((x) => x.comps.includes(idSel));
     ficha = `<h2>Ficha do componente</h2>${cartaoComp(idSel)}
-      <h3>Tarefas do MPI neste componente (${rel.length})</h3>${rel.length ? rel.slice(0, 40).map((x) => itemTarefa(x, { origem: true })).join('') : '<p class="nota">Nenhuma tarefa específica cadastrada nesta demonstração.</p>'}`;
+      ${COMPS[idSel].motor ? `<div class="linha"><a class="bt pri" href="motor.html?m=${CFG.id}">Abrir o motor 3D (${esc(CFG.motor)}) ›</a></div>` : ''}
+      <h3>Tarefas do ${esc(INFO.manual)} neste componente (${rel.length})</h3>${rel.length ? rel.slice(0, 40).map((x) => itemTarefa(x, { origem: true })).join('') : '<p class="nota">Nenhuma tarefa específica cadastrada nesta demonstração.</p>'}`;
   }
   conteudo.innerHTML = `${ficha}<h2 style="margin-top:${idSel ? 18 : 0}px">Todos os sistemas (por capítulo ATA)</h2>
     ${ids.map((id) => `<div class="item${id === idSel ? ' ativo' : ''}" data-ficha="${id}"><span class="tag">ATA ${COMPS[id].ata}</span><div class="desc">${esc(COMPS[id].n)}<div class="meta">Zona ${esc(COMPS[id].z)}</div></div></div>`).join('')}`;
 };
 
 /* ---------- Sensores IoT (monitoramento de condição) ---------- */
-const iot = guarda.ler('b429_iot', { modo: 'sim', url: 'api/telemetria.php' });
+const iot = guarda.ler(K + '_iot', { modo: 'sim', url: 'api/telemetria.php' });
 const leit = {};          // id -> { v, t (ms), hist: [] }
 const falha = new Set();  // sensores com falha simulada
 let conexao = 'simulação';
+// Cenários de teste (simulação): ciclo de voo e estresse progressivo até a falha
+let cenario = 'normal', cenT0 = Date.now(), cenLog = [], cenEstado = {};
+const FASES_VOO = [[0, 'Partida e aquecimento', 0.35], [8, 'Pairado', 0.85], [16, 'Decolagem (potência máxima)', 1.0], [24, 'Cruzeiro', 0.8], [44, 'Descida', 0.5], [52, 'Aproximação e pouso', 0.85], [58, 'Corte do motor', 0.3]];
+const CICLO_VOO = 62;
+const pesoSensor = (id) => { let h = 7; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return 0.8 + (h % 1000) / 1000 * 0.45; };
+function faseVoo(t) { const tt = t % CICLO_VOO; let f = FASES_VOO[0]; for (const x of FASES_VOO) if (tt >= x[0]) f = x; return f; }
+const tempoCen = () => (Date.now() - cenT0) / 1000;
+const cargaEstresse = () => Math.min(1.75, tempoCen() / 50);
+function alvoCenario(s) {
+  if (cenario === 'voo') {
+    const [, nome, L] = faseVoo(tempoCen());
+    if (s.tipo === 'bool') return 0;
+    if (s.un === 'g') return /pouso/i.test(nome) ? 1.45 : 1.0;
+    if (s.tipo === 'max') return Math.max(0, s.base + (s.al - s.base) * (L - 0.8) * 1.3);
+    return s.base;
+  }
+  if (cenario === 'estresse') {
+    const S = cargaEstresse() * pesoSensor(s.id);
+    if (s.tipo === 'bool') return S > 1.3 ? 1 : 0;
+    if (s.tipo === 'max') return s.base + (s.cr - s.base) * S;
+    return s.base - (s.base - s.cr) * S;
+  }
+  return null;
+}
+function reiniciarCenario(c) { cenario = c; cenT0 = Date.now(); cenLog = []; cenEstado = {}; }
 // em modo "sensores reais", quem ainda não enviou leitura aparece como SEM SINAL
 function zerarLeituras() { for (const s of SENSORES) leit[s.id] = { v: s.base, t: iot.modo === 'sim' ? Date.now() : 0, hist: [] }; }
 zerarLeituras();
@@ -467,8 +513,9 @@ function registrar(s, v, t = Date.now()) { const l = leit[s.id]; l.v = v; l.t = 
 function passoSimulado() {
   for (const s of SENSORES) {
     const l = leit[s.id];
-    if (s.tipo === 'bool') { registrar(s, falha.has(s.id) ? 1 : 0); continue; }
-    const alvo = falha.has(s.id) ? s.cr + (s.cr - s.al) * 0.35 * (s.tipo === 'max' ? 1 : -1) : s.base;
+    const ac = alvoCenario(s);
+    if (s.tipo === 'bool') { registrar(s, falha.has(s.id) ? 1 : (ac ?? 0)); continue; }
+    const alvo = falha.has(s.id) ? s.cr + (s.cr - s.al) * 0.35 * (s.tipo === 'max' ? 1 : -1) : (ac ?? s.base);
     registrar(s, l.v + (alvo - l.v) * 0.12 + (Math.random() - 0.5) * s.ruido);
   }
 }
@@ -484,6 +531,11 @@ async function passoRemoto() {
 function avaliar() {
   const pior = {}, ordem = { sem: 0, ok: 1, al: 2, cr: 3 };
   for (const s of SENSORES) { const e = estado(s); for (const c of s.comp) if (!pior[c] || ordem[e] > ordem[pior[c]]) pior[c] = e; }
+  if (cenario !== 'normal') for (const s of SENSORES) { // registra a ordem em que os sensores saem da faixa
+    const e = estado(s), ant = cenEstado[s.id];
+    if ((e === 'al' || e === 'cr') && e !== ant && !(ant === 'cr' && e === 'al')) cenLog.push({ t: tempoCen(), s, e, fase: cenario === 'voo' ? faseVoo(tempoCen())[1] : `carga ${Math.round(cargaEstresse() * 100)}%` });
+    cenEstado[s.id] = e;
+  }
   const mudou = JSON.stringify(pior) !== JSON.stringify(saudeComp);
   saudeComp = pior;
   if (mudou && mapaSaude && !sel.size) aplicarMateriais();
@@ -508,6 +560,15 @@ function atualizarSensores() {
     c.classList.toggle('critico', e === 'cr'); c.classList.toggle('alerta', e === 'al');
   }
   const elC = $('#iotConexao'); if (elC) elC.textContent = conexao;
+  const elF = $('#iotFase');
+  if (elF) elF.textContent = cenario === 'voo' ? `Fase: ${faseVoo(tempoCen())[1]} · carga ${Math.round(faseVoo(tempoCen())[2] * 100)}% · ${Math.floor(tempoCen() % CICLO_VOO)} s de ${CICLO_VOO} s`
+    : cenario === 'estresse' ? `Carga aplicada: ${Math.round(cargaEstresse() * 100)}% da faixa até o limite crítico (100% = crítico no sensor médio) · ${Math.floor(tempoCen())} s` : 'Operação normal: leituras em torno do valor de referência.';
+  const elL = $('#iotLog');
+  if (elL && elL.dataset.n !== String(cenLog.length)) {
+    elL.dataset.n = cenLog.length;
+    elL.innerHTML = cenario === 'normal' ? '' : cenLog.length ? `<table><tr><th>t (s)</th><th>Sensor / componente</th><th>Estado</th><th>${cenario === 'voo' ? 'Fase' : 'Carga'}</th></tr>${cenLog.slice(-40).map((x) => `<tr class="clic" data-comps="${x.s.comp.join(',')}"><td>${x.t.toFixed(0)}</td><td>${esc(x.s.n)}<div class="nota" style="margin:0">${x.s.comp.map((c) => esc(COMPS[c].n)).join(' · ')}</div></td><td><span class="tag ${ROT[x.e][0]}">${ROT[x.e][1]}</span></td><td>${esc(x.fase)}</td></tr>`).join('')}</table>`
+      : '<p class="nota">Nenhum sensor saiu da faixa até agora.</p>';
+  }
   const alertas = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))), elA = $('#iotAlertas'), chave = alertas.map((s) => s.id + estado(s)).join();
   if (elA && elA.dataset.chave !== chave) {
     elA.dataset.chave = chave;
@@ -524,12 +585,17 @@ setInterval(async () => { if (iot.modo === 'sim') { passoSimulado(); conexao = '
 
 desenhar.sensores = () => {
   conteudo.innerHTML = `<h2>Sensores IoT – monitoramento de condição</h2>
-    <p class="nota">Cada sensor está ligado a um componente do modelo. Quando sai da faixa, o componente muda de cor no mapa de saúde e as tarefas do MPI relacionadas aparecem abaixo.</p>
+    <p class="nota">Cada sensor está ligado a um componente do modelo. Quando sai da faixa, o componente muda de cor no mapa de saúde e as tarefas relacionadas do ${esc(INFO.manual)} aparecem abaixo.</p>
     <div class="linha"><button class="bt pri" id="btMapa">${mapaSaude ? 'Desligar mapa de saúde' : 'Ver mapa de saúde no 3D'}</button></div>
     <h3>Origem dos dados</h3>
     <div class="linha"><select id="iotModo" style="flex:1;min-width:160px"><option value="sim" ${iot.modo === 'sim' ? 'selected' : ''}>Simulação (demonstração)</option><option value="http" ${iot.modo === 'http' ? 'selected' : ''}>Sensores reais (servidor de telemetria)</option></select>
       <input type="text" id="iotUrl" value="${esc(iot.url)}" style="flex:1;min-width:150px" ${iot.modo === 'sim' ? 'disabled' : ''} title="Endereço que devolve as leituras em JSON"></div>
     <p class="nota">Estado: <span id="iotConexao">${esc(conexao)}</span></p>
+    ${iot.modo === 'sim' ? `<h3>Teste em modelo (cenário)</h3>
+    <div class="linha"><select id="iotCenario" style="flex:1;min-width:180px"><option value="normal" ${cenario === 'normal' ? 'selected' : ''}>Operação normal</option><option value="voo" ${cenario === 'voo' ? 'selected' : ''}>Ciclo de voo: partida → pairado → decolagem → cruzeiro → pouso → corte</option><option value="estresse" ${cenario === 'estresse' ? 'selected' : ''}>Estresse progressivo dos componentes (até falhar)</option></select><button class="bt" id="btCenario">Reiniciar</button></div>
+    <p class="nota" id="iotFase"></p>
+    <p class="nota">No estresse, a carga sobe em todos os sensores ao mesmo tempo; cada componente tem margem diferente, então a tabela abaixo mostra a <b>ordem em que eles chegam ao alerta e ao crítico</b>. Ligue o mapa de saúde para ver no 3D. O teste detalhado do motor (ignição, voo e estresse) fica na página <a href="motor.html?m=${CFG.id}">Motor 3D</a>.</p>
+    <div id="iotLog"></div>` : ''}
     <h3>Alertas e manutenção indicada</h3><div id="iotAlertas"></div>
     <h3>Leituras ao vivo – ${SENSORES.length} sensores em ${Object.keys(COMPS).length} componentes</h3>
     ${SENSORES.map((s, i) => `${i === 0 || SENSORES[i - 1].grupo !== s.grupo ? `<h3>${esc(s.grupo)}</h3>` : ''}<div class="cartao clic sensor" data-sensor="${s.id}" data-comps="${s.comp.join(',')}">
@@ -552,40 +618,40 @@ const dataArq = () => new Date().toISOString().slice(0, 10);
 const num = (v) => (Number.isFinite(+v) ? +v : 0);
 function exportar(tipo) {
   const st = lerCtrl(), mat = st.mat ? st.mat.replace(/[^\w-]/g, '') + '_' : '';
-  if (tipo === 'json') return baixar(`bell429_${mat}backup_${dataArq()}.json`, JSON.stringify({ app: 'bell429-manual', versao: 1, exportado: new Date().toISOString(), dados: { check: feitos, ctrl: st, tarefas: guarda.ler('b429_tarefas', []), iot } }, null, 2), 'application/json');
-  if (tipo === 'ctrl') return baixar(`bell429_${mat}controle_${dataArq()}.csv`, paraCsv([
+  if (tipo === 'json') return baixar(`bell${CFG.id}_${mat}backup_${dataArq()}.json`, JSON.stringify({ app: `bell${CFG.id}-manual`, versao: 1, exportado: new Date().toISOString(), dados: { check: feitos, ctrl: st, tarefas: guarda.ler(K + '_tarefas', []), iot } }, null, 2), 'application/json');
+  if (tipo === 'ctrl') return baixar(`bell${CFG.id}_${mat}controle_${dataArq()}.csv`, paraCsv([
     ['Matrícula', st.mat, 'Horas totais', st.tsn, 'Média h/mês', st.media], [],
     ['Intervalo', 'Horas', 'Origem', 'Última execução (h)', 'Vence com (h)', 'Restam (h)', 'Situação'],
-    ...linhasControle(st).map(({ l, ult, prox, resta, sit }) => [l.nome, l.h, l.origem === 'mpi' ? 'BHT-429-MPI' : 'Operador', st.ult[l.id] == null ? '' : ult, prox.toFixed(1), resta.toFixed(1), sit[1]])]), 'text/csv');
-  if (tipo === 'check') return baixar(`bell429_${mat}checklist_${dataArq()}.csv`, paraCsv([
+    ...linhasControle(st).map(({ l, ult, prox, resta, sit }) => [l.nome, l.h, l.origem === 'mpi' ? INFO.manual : 'Operador', st.ult[l.id] == null ? '' : ult, prox.toFixed(1), resta.toFixed(1), sit[1]])]), 'text/csv');
+  if (tipo === 'check') return baixar(`bell${CFG.id}_${mat}checklist_${dataArq()}.csv`, paraCsv([
     ['Inspeção', 'Sistema', 'Tarefa', 'Descrição', 'Acesso', 'Zona', 'Componentes no modelo', 'Executada'],
     ...TAREFAS.map((x) => [x.ins.nome, x.g.s, x.t[0], x.t[1], x.t[2], x.t[3], x.comps.map((c) => COMPS[c].n).join(' | '), feitos[x.ins.id + ':' + x.t[0]] ? 'SIM' : ''])]), 'text/csv');
-  if (tipo === 'sens') return baixar(`bell429_${mat}sensores_${dataArq()}.csv`, paraCsv([
+  if (tipo === 'sens') return baixar(`bell${CFG.id}_${mat}sensores_${dataArq()}.csv`, paraCsv([
     ['Sensor', 'Id', 'Sistema', 'Componentes', 'Valor', 'Unidade', 'Alerta', 'Crítico', 'Estado', 'Origem'],
     ...SENSORES.map((s) => [s.n, s.id, s.grupo, s.comp.map((c) => COMPS[c].n).join(' | '), s.tipo === 'bool' ? leit[s.id].v : leit[s.id].v.toFixed(2), s.un, s.al ?? '', s.cr ?? '', ROT[estado(s)][1], iot.modo === 'sim' ? 'simulação' : iot.url])]), 'text/csv');
 }
 function importar(texto) {
   let j; try { j = JSON.parse(texto); } catch { return 'Arquivo inválido: não é JSON.'; }
-  const d = j && j.app === 'bell429-manual' && j.dados;
+  const d = j && j.app === `bell${CFG.id}-manual` && j.dados;
   if (!d || typeof d !== 'object') return 'Arquivo inválido: não é um backup deste manual.';
   if (!confirm('Importar substitui as marcações, o controle e as tarefas salvas deste navegador. Continuar?')) return 'Importação cancelada.';
   for (const k in feitos) delete feitos[k];
   if (d.check && typeof d.check === 'object') for (const k of Object.keys(d.check).slice(0, 5000)) if (k.length <= 80 && d.check[k]) feitos[k] = 1;
-  guarda.salvar('b429_check', feitos);
+  guarda.salvar(K + '_check', feitos);
   const c = d.ctrl && typeof d.ctrl === 'object' ? d.ctrl : {}, ult = {};
   for (const k of Object.keys(c.ult || {}).slice(0, 300)) if (k.length <= 40) ult[k] = num(c.ult[k]);
-  guarda.salvar('b429_ctrl', {
+  guarda.salvar(K + '_ctrl', {
     mat: String(c.mat || '').slice(0, 20), tsn: num(c.tsn), media: num(c.media), ult,
     extra: (Array.isArray(c.extra) ? c.extra : []).slice(0, 60).filter((x) => x && num(x.h) > 0).map((x) => ({ id: String(x.id || 'x' + Math.random()).slice(0, 40), nome: String(x.nome || '').slice(0, 80), h: num(x.h), origem: 'op', extra: 1 })),
     rin: Array.isArray(c.rin) ? c.rin.slice(0, 3).map(num) : undefined
   });
-  guarda.salvar('b429_tarefas', (Array.isArray(d.tarefas) ? d.tarefas : []).filter((s) => typeof s === 'string').map((s) => s.slice(0, 300)).slice(0, 30));
+  guarda.salvar(K + '_tarefas', (Array.isArray(d.tarefas) ? d.tarefas : []).filter((s) => typeof s === 'string').map((s) => s.slice(0, 300)).slice(0, 30));
   seloControle();
   return `Backup de ${String(j.exportado || '').slice(0, 10) || 'data desconhecida'} importado.`;
 }
 let msgDados = '';
 desenhar.dados = () => {
-  const st = lerCtrl(), nFeitos = Object.keys(feitos).length, salvas = guarda.ler('b429_tarefas', []).length, venc = linhasControle(st).filter((x) => x.sit[0] === 'er').length;
+  const st = lerCtrl(), nFeitos = Object.keys(feitos).length, salvas = guarda.ler(K + '_tarefas', []).length, venc = linhasControle(st).filter((x) => x.sit[0] === 'er').length;
   conteudo.innerHTML = `<h2>Dados registrados neste navegador</h2>
     <div class="resumo"><div><b>${nFeitos}</b><span>itens de checklist marcados</span></div><div><b>${salvas}</b><span>tarefas descritas salvas</span></div>
       <div><b>${st.mat ? esc(st.mat) : '—'} · ${st.tsn} h</b><span>aeronave no controle</span></div><div><b>${venc}</b><span>inspeções vencidas</span></div></div>
@@ -608,9 +674,9 @@ function acaoDados(acao) {
   if (acao === 'imprimir') { if (abaAtual !== 'inspecoes') abrirAba('inspecoes'); setTimeout(() => window.print(), 100); return; }
   const alvo = { 'apagar-check': 'as marcações de checklist', 'apagar-ctrl': 'o controle por horas', 'apagar-tarefas': 'as tarefas salvas', 'apagar-tudo': 'TODOS os dados' }[acao];
   if (!alvo || !confirm(`Apagar ${alvo} deste navegador? Não é possível desfazer.`)) return;
-  if (acao === 'apagar-check' || acao === 'apagar-tudo') { for (const k in feitos) delete feitos[k]; guarda.salvar('b429_check', feitos); selo('inspecoes', 0); }
-  if (acao === 'apagar-ctrl' || acao === 'apagar-tudo') guarda.salvar('b429_ctrl', {});
-  if (acao === 'apagar-tarefas' || acao === 'apagar-tudo') guarda.salvar('b429_tarefas', []);
+  if (acao === 'apagar-check' || acao === 'apagar-tudo') { for (const k in feitos) delete feitos[k]; guarda.salvar(K + '_check', feitos); selo('inspecoes', 0); }
+  if (acao === 'apagar-ctrl' || acao === 'apagar-tudo') guarda.salvar(K + '_ctrl', {});
+  if (acao === 'apagar-tarefas' || acao === 'apagar-tudo') guarda.salvar(K + '_tarefas', []);
   seloControle(); msgDados = `Apagado: ${alvo}.`; desenhar.dados();
 }
 
@@ -627,16 +693,17 @@ conteudo.addEventListener('click', (e) => {
     else abrirAba(o.ir.aba);
     selecionar(o.comps); return;
   }
-  if (t.id === 'btMarcar') { for (const c of conteudo.querySelectorAll('.item:not(.oculto) [data-check]')) { c.checked = true; feitos[c.dataset.check] = 1; c.closest('.item').classList.add('feito'); } guarda.salvar('b429_check', feitos); progresso(); filtrarInspecao(); return; }
+  if (t.id === 'btMarcar') { for (const c of conteudo.querySelectorAll('.item:not(.oculto) [data-check]')) { c.checked = true; feitos[c.dataset.check] = 1; c.closest('.item').classList.add('feito'); } guarda.salvar(K + '_check', feitos); progresso(); filtrarInspecao(); return; }
   if (t.id === 'btMapa') { ligarMapaSaude(!mapaSaude); desenhar.sensores(); return; }
+  if (t.id === 'btCenario') { reiniciarCenario(cenario); falha.clear(); desenhar.sensores(); return; }
   if (t.dataset.falha) { falha.has(t.dataset.falha) ? falha.delete(t.dataset.falha) : falha.add(t.dataset.falha); t.textContent = falha.has(t.dataset.falha) ? 'Normalizar' : 'Simular falha'; return; }
   if (t.dataset.ex) { ultimoTexto = t.dataset.ex; $('#txt').value = ultimoTexto; mostrarAnalise(); return; }
   if (t.id === 'btMostrar') { ultimoTexto = $('#txt').value; mostrarAnalise(); return; }
-  if (t.id === 'btSalvar') { const v = $('#txt').value.trim(); if (v) { const s = guarda.ler('b429_tarefas', []); if (!s.includes(v)) s.unshift(v); guarda.salvar('b429_tarefas', s.slice(0, 30)); ultimoTexto = v; desenhar.descrever(); } return; }
-  if (t.dataset.apagar) { const s = guarda.ler('b429_tarefas', []); s.splice(+t.dataset.apagar, 1); guarda.salvar('b429_tarefas', s); desenhar.descrever(); return; }
+  if (t.id === 'btSalvar') { const v = $('#txt').value.trim(); if (v) { const s = guarda.ler(K + '_tarefas', []); if (!s.includes(v)) s.unshift(v); guarda.salvar(K + '_tarefas', s.slice(0, 30)); ultimoTexto = v; desenhar.descrever(); } return; }
+  if (t.dataset.apagar) { const s = guarda.ler(K + '_tarefas', []); s.splice(+t.dataset.apagar, 1); guarda.salvar(K + '_tarefas', s); desenhar.descrever(); return; }
   const salva = t.closest('[data-salva]');
-  if (salva) { ultimoTexto = guarda.ler('b429_tarefas', [])[+salva.dataset.salva] || ''; $('#txt').value = ultimoTexto; mostrarAnalise(); conteudo.scrollTop = 0; return; }
-  if (t.id === 'btZerar') { for (const c of conteudo.querySelectorAll('[data-check]')) delete feitos[c.dataset.check]; guarda.salvar('b429_check', feitos); desenhar.inspecoes(); return; }
+  if (salva) { ultimoTexto = guarda.ler(K + '_tarefas', [])[+salva.dataset.salva] || ''; $('#txt').value = ultimoTexto; mostrarAnalise(); conteudo.scrollTop = 0; return; }
+  if (t.id === 'btZerar') { for (const c of conteudo.querySelectorAll('[data-check]')) delete feitos[c.dataset.check]; guarda.salvar(K + '_check', feitos); desenhar.inspecoes(); return; }
   if (t.dataset.insp) { abrirAba('inspecoes'); desenhar.inspecoes(t.dataset.insp); return; }
   if (t.dataset.feita) { salvarControle((st) => { st.ult[t.dataset.feita] = st.tsn; }); return; }
   if (t.dataset.remover) { salvarControle((st) => { st.extra = st.extra.filter((x) => x.id !== t.dataset.remover); }); return; }
@@ -648,12 +715,13 @@ conteudo.addEventListener('click', (e) => {
 });
 conteudo.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.dataset.check) { if (t.checked) feitos[t.dataset.check] = 1; else delete feitos[t.dataset.check]; guarda.salvar('b429_check', feitos); t.closest('.item').classList.toggle('feito', t.checked); progresso(); if ($('#soPend')?.checked) filtrarInspecao(); }
+  if (t.dataset.check) { if (t.checked) feitos[t.dataset.check] = 1; else delete feitos[t.dataset.check]; guarda.salvar(K + '_check', feitos); t.closest('.item').classList.toggle('feito', t.checked); progresso(); if ($('#soPend')?.checked) filtrarInspecao(); }
   else if (t.id === 'soPend') filtrarInspecao();
   else if (t.id === 'arqImport') { const f = t.files[0]; if (f) f.text().then((txt) => { msgDados = importar(txt); desenhar.dados(); }); }
   else if (t.id === 'selInsp') { selecionar([]); desenhar.inspecoes(t.value); }
-  else if (t.id === 'iotModo') { iot.modo = t.value; guarda.salvar('b429_iot', iot); falha.clear(); zerarLeituras(); desenhar.sensores(); }
-  else if (t.id === 'iotUrl') { iot.url = t.value.trim() || 'api/telemetria.php'; guarda.salvar('b429_iot', iot); }
+  else if (t.id === 'iotModo') { iot.modo = t.value; guarda.salvar(K + '_iot', iot); falha.clear(); reiniciarCenario('normal'); zerarLeituras(); desenhar.sensores(); }
+  else if (t.id === 'iotCenario') { reiniciarCenario(t.value); falha.clear(); if (t.value === 'estresse' && !mapaSaude) ligarMapaSaude(true); desenhar.sensores(); }
+  else if (t.id === 'iotUrl') { iot.url = t.value.trim() || 'api/telemetria.php'; guarda.salvar(K + '_iot', iot); }
   else if (t.id === 'selEvento') { eventoAtual = t.value; selecionar([]); desenhar.eventos(); }
   else if (t.id === 'cMat') salvarControle((st) => { st.mat = t.value; });
   else if (t.id === 'cTsn') salvarControle((st) => { st.tsn = +t.value || 0; });
@@ -667,4 +735,4 @@ conteudo.addEventListener('input', (e) => { if (e.target.id === 'filtroInsp') fi
 
 seloControle();
 abrirAba(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'descrever');
-window.b429 = { selecionar, analisar, abrirAba, TAREFAS, exportar, importar }; // útil para testes no console
+window.manual = window.b429 = { CFG, selecionar, analisar, abrirAba, TAREFAS, exportar, importar }; // útil para testes no console

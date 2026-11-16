@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual Interativo · Manutenção Interativa</title>
+  <meta name="description" content="Manutenção Interativa: manual de manutenção interativo 3D de cada helicóptero Bell, com inspeções, controle por horas, sensores IoT e regulamentação ANAC.">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <aside id="painel">
+      <header>
+        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel Manutenção Interativa">…</a>
+          <div class="marca-txt"><h1>Manual Interativo <small>· Manutenção Interativa</small></h1><p id="subModelo">carregando…</p></div>
+        </div>
+        <div class="linha topo"><select id="trocaModelo" title="Trocar de modelo" aria-label="Modelo"></select></div>
+        <div id="buscaCx"><input type="search" id="busca" placeholder="Buscar peça, tarefa, sensor, P/N, RBAC…  ( / )" autocomplete="off"></div>
+      </header>
+      <nav id="abas" role="tablist" aria-label="Seções do manual">
+        <button data-aba="descrever" class="ativa" title="Descrever a manutenção (Alt+1)"><i>✎</i><span>Descrever</span></button>
+        <button data-aba="inspecoes" title="Inspeções programadas (Alt+2)"><i>☑</i><span>Inspeções</span><b class="selo-n" hidden></b></button>
+        <button data-aba="sensores" title="Sensores IoT e testes em modelo (Alt+3)"><i>∿</i><span>Sensores</span><b class="selo-n" hidden></b></button>
+        <button data-aba="controle" title="Controle por horas (Alt+4)"><i>◔</i><span>Controle</span><b class="selo-n" hidden></b></button>
+        <button data-aba="limites" title="Limites de vida (Alt+5)"><i>≤</i><span>Limites</span></button>
+        <button data-aba="eventos" title="Inspeções após evento (Alt+6)"><i>⚠</i><span>Eventos</span></button>
+        <button data-aba="anac" title="Regulamentação ANAC (Alt+7)"><i>§</i><span>ANAC</span></button>
+        <button data-aba="sistemas" title="Sistemas por ATA (Alt+8)"><i>▦</i><span>Sistemas</span></button>
+        <button data-aba="dados" title="Exportar, importar e apagar dados (Alt+9)"><i>⇅</i><span>Dados</span></button>
+      </nav>
+      <div id="conteudo"></div>
+      <footer id="rodape">Modelo ilustrativo e simplificado para demonstração e treinamento.</footer>
+    </aside>
+
+    <main id="vista">
+      <div id="barra">
+        <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
+        <a class="botao" id="btMotor" href="motor.html" title="Motor 3D editável com mapa de sensores e testes">Motor 3D</a>
+        <button id="btPainel" title="Esconde ou mostra o painel do manual">Painel</button>
+        <button id="btSaude" title="Pinta os componentes pela condição lida nos sensores">Saúde</button>
+        <button id="btRaiox" title="Deixa o revestimento transparente">Raio-X</button>
+        <button id="btGirar" title="Liga/desliga a rotação dos rotores">Girar rotores</button>
+        <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
+      </div>
+      <div id="selbar" hidden></div>
+      <div id="rotulos"></div>
+      <div id="dica" hidden></div>
+      <div id="ajuda">Arraste para girar · role para aproximar · clique numa peça para ver a ficha</div>
+      <div id="erro" hidden></div>
+    </main>
+  </div>
+
+  <script src="modelos/catalogo.js"></script>
+  <script type="module" src="app.js"></script>
+  <script>
+    // Aviso amigável se abrir direto do disco (módulos exigem servidor: WAMP, GitHub Pages etc.)
+    if (location.protocol === 'file:') {
+      var e = document.getElementById('erro'); e.hidden = false;
+      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/</b> (WAMP ligado) ou pelo GitHub Pages. Aberto direto do disco, o navegador bloqueia os módulos 3D.';
+    }
+  </script>
+</body>
+</html>
