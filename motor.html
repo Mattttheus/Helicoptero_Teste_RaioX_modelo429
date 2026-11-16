@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motor 3D · Manutenção Interativa</title>
+  <meta name="description" content="Manutenção Interativa: motor 3D editável de cada helicóptero Bell, com mapa de instalação de sensores, testes de partida, voo, estresse e teste de sensores.">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body class="pagina-motor">
+  <div id="app">
+    <aside id="painel">
+      <header>
+        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel Manutenção Interativa">…</a>
+          <div class="marca-txt"><h1>Motor 3D <small>· Manutenção Interativa</small></h1><p id="subModelo">carregando…</p></div>
+        </div>
+        <div class="linha topo"><select id="trocaModelo" title="Trocar de modelo" aria-label="Modelo"></select></div>
+      </header>
+      <nav id="abas" class="abas6" role="tablist" aria-label="Seções do motor">
+        <button data-aba="motor" class="ativa" title="Arquitetura e peças (Alt+1)"><i>⚙</i><span>Motor</span></button>
+        <button data-aba="sensores" title="Mapa de instalação dos sensores (Alt+2)"><i>⌖</i><span>Sensores</span></button>
+        <button data-aba="testes" title="Partida, voo, estresse e teste de sensores (Alt+3)"><i>▶</i><span>Testes</span><b class="selo-n" hidden></b></button>
+        <button data-aba="manutencao" title="Tarefas de manutenção (Alt+4)"><i>⚒</i><span>Manutenção</span></button>
+        <button data-aba="editar" title="Editar o motor e os sensores (Alt+5)"><i>✎</i><span>Editar</span></button>
+        <button data-aba="dados" title="Exportar e importar (Alt+6)"><i>⇅</i><span>Dados</span></button>
+      </nav>
+      <div id="conteudo"></div>
+      <footer id="rodape">Motor ilustrativo e simplificado para treinamento. Não substitui o manual do fabricante do motor.</footer>
+    </aside>
+
+    <main id="vista">
+      <div id="barra">
+        <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
+        <a class="botao" id="btManual" href="manual.html" title="Manual interativo do helicóptero">Manual 3D</a>
+        <button id="btPainel" title="Esconde ou mostra o painel">Painel</button>
+        <button id="btCorte" title="Corta as carcaças ao meio para ver o interior">Corte</button>
+        <button id="btRaiox" title="Deixa as carcaças transparentes">Raio-X</button>
+        <button id="btSensores" class="on" title="Mostra os pontos de instalação dos sensores">Sensores</button>
+        <button id="btRotulos" title="Nomes dos sensores no 3D">Rótulos</button>
+        <button id="btCarga" title="Pinta as peças pela carga durante os testes">Carga</button>
+        <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
+      </div>
+      <div id="explodeCx" title="Separa os módulos do motor (vista explodida)"><label for="explodir">Vista explodida</label><input type="range" id="explodir" min="0" max="1" step="0.01" value="0"></div>
+      <div id="selbar" hidden></div>
+      <div id="rotulos"></div>
+      <div id="dica" hidden></div>
+      <div id="faseSim" hidden></div>
+      <div id="instrumentos" hidden></div>
+      <div id="ajuda">Arraste para girar · role para aproximar · clique numa peça ou num sensor</div>
+      <div id="erro" hidden></div>
+    </main>
+  </div>
+
+  <script src="modelos/catalogo.js"></script>
+  <script type="module" src="motor.js"></script>
+  <script>
+    if (location.protocol === 'file:') {
+      var e = document.getElementById('erro'); e.hidden = false;
+      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/motor.html</b> (WAMP ligado) ou pelo GitHub Pages. Aberto direto do disco, o navegador bloqueia os módulos 3D.';
+    }
+  </script>
+</body>
+</html>
