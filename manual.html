@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261115g">
+  <link rel="stylesheet" href="style.css?v=20261116b">
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -56,6 +56,7 @@
         <button id="btPainel" title="Esconde ou mostra o painel do manual">Ocultar painel</button>
         <button id="btSaude" title="Pinta os componentes pela condição lida nos sensores">Saúde</button>
         <button id="btRaiox" title="Deixa o revestimento transparente">Raio-X</button>
+        <button id="btMapaSens" title="Mapa de onde colocar os sensores: um número em cada ponto, ligado à lista da aba Sensores">Mapa de sensores</button>
         <button id="btGirar" title="Liga/desliga a rotação dos rotores">Girar rotores</button>
         <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
       </div>
@@ -68,8 +69,8 @@
     </main>
   </div>
 
-  <script src="modelos/catalogo.js?v=20261115g"></script>
-  <script type="module" src="app.js?v=20261115g"></script>
+  <script src="modelos/catalogo.js?v=20261116b"></script>
+  <script type="module" src="app.js?v=20261116b"></script>
   <script>
     // Aviso amigável se abrir direto do disco (módulos exigem servidor: WAMP, GitHub Pages etc.)
     if (location.protocol === 'file:') {

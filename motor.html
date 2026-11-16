@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261115g">
+  <link rel="stylesheet" href="style.css?v=20261116b">
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -52,6 +52,7 @@
         <button id="btRaiox" title="Deixa as carcaças transparentes">Raio-X</button>
         <button id="btSensores" class="on" title="Mostra os pontos de instalação dos sensores">Sensores</button>
         <button id="btRotulos" title="Nomes dos sensores no 3D">Rótulos</button>
+        <button id="btMapaNum" title="Mapa de onde colocar os sensores: um número em cada ponto de instalação">Mapa nº</button>
         <button id="btCarga" title="Pinta as peças pela carga durante os testes">Carga</button>
         <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
       </div>
@@ -66,8 +67,8 @@
     </main>
   </div>
 
-  <script src="modelos/catalogo.js?v=20261115g"></script>
-  <script type="module" src="motor.js?v=20261115g"></script>
+  <script src="modelos/catalogo.js?v=20261116b"></script>
+  <script type="module" src="motor.js?v=20261116b"></script>
   <script>
     if (location.protocol === 'file:') {
       var e = document.getElementById('erro'); e.hidden = false;

@@ -3,9 +3,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115g';
-import { construirMotor } from './motor3d.js?v=20261115g';
-import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261115g';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261116b';
+import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261116b';
+import { construirMotor } from './motor3d.js?v=20261116b';
+import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261116b';
 
 const CFG = modeloAtual();
 try { await carregarScripts(['modelos/motor_comum.js', CFG.motorArq]); } catch (e) { mostrarErro(e.message); throw e; }
@@ -71,8 +72,9 @@ const falhasSensor = {}; // id -> tipo de falha injetada (teste de sensores)
 const COR_TIPO = (t) => /termopar/i.test(t) ? 0xff6a3d : /aceler/i.test(t) ? 0xb26bff : /press|torque|torquí/i.test(t) ? 0x3fa7ff : /rpm|pickup|monopolo|tacom|rota/i.test(t) ? 0x46c08a : /limalha|interruptor|chip/i.test(t) ? 0xf0b83c : /rtd|temperatura|bulbo/i.test(t) ? 0xff9f6a : 0xd0d6de;
 const grpSens = new THREE.Group(); motor.raiz.add(grpSens);
 let marcadores = {};
+let mapaSujo = true; // números do mapa refeitos no próximo quadro
 function montarMarcadores() {
-  grpSens.clear(); marcadores = {};
+  grpSens.clear(); marcadores = {}; mapaSujo = true;
   for (const s of SENS) {
     const g = new THREE.Group(), dir = new THREE.Vector3(...(s.dir || [0, 1, 0])).normalize(), cor = COR_TIPO(s.tipo);
     const mat = new THREE.MeshStandardMaterial({ color: cor, emissive: cor, emissiveIntensity: 0.35, roughness: 0.4 });
@@ -86,6 +88,20 @@ function montarMarcadores() {
   }
 }
 montarMarcadores();
+
+/* ---------- mapa numerado de onde colocar os sensores ---------- */
+const ORDEM_GRUPOS = ['Temperatura dos gases (termopares)', 'Rotação', 'Torque', 'Pressão', 'Temperatura (RTD)', 'Detecção discreta (limalha, ΔP)', 'Fluxo de combustível', 'Vibração (acelerômetros)', 'Controle eletrônico (FADEC)', 'Elétrica e outros'];
+let NUM = new Map();
+function ordemMapa() { // sensores na ordem do mapa (por grupo de medição), numerados de 1 a N
+  const g = (s) => { const i = ORDEM_GRUPOS.indexOf(grupoTipo(s.tipo)); return i < 0 ? 99 : i; };
+  const lista = SENS.map((s, i) => [s, i]).sort((a, b) => g(a[0]) - g(b[0]) || a[1] - b[1]).map((x) => x[0]);
+  NUM = new Map(lista.map((s, i) => [s.id, i + 1]));
+  return lista;
+}
+const marcas = new MarcasNumeradas(vista);
+function montarMapa() {
+  marcas.definir(ordemMapa().map((s) => ({ id: s.id, n: NUM.get(s.id), cor: COR_TIPO(s.tipo), titulo: `${NUM.get(s.id)} · ${s.n}`, obter: (v) => (marcadores[s.id] ? marcadores[s.id].localToWorld(v.set(0, 0.075, 0)) : v.set(0, -99, 0)) })));
+}
 
 /* =====================================================================
    Materiais: seleção, destaque, raio-X, corte, calor e mapa de carga
@@ -264,6 +280,9 @@ alternar('#btRaiox', () => (raiox = !raiox));
 alternar('#btSensores', () => (grpSens.visible = !grpSens.visible));
 alternar('#btRotulos', () => (verRotulos = !verRotulos));
 alternar('#btCarga', () => (verCarga = !verCarga));
+function ligarMapaNum(v) { marcas.mostrar(v && grpSens.visible); $('#btMapaNum').classList.toggle('on', v); }
+$('#btMapaNum').onclick = () => ligarMapaNum(!marcas.ativo);
+marcas.el.addEventListener('click', (e) => { const b = e.target.closest('[data-sensor]'); if (b) { selecionarSensor(b.dataset.sensor); if (abaAtual !== 'editar') abrirAba('sensores'); desenharFichaSensor(); } });
 function ligarCarga(v) { verCarga = v; $('#btCarga').classList.toggle('on', v); }
 $('#btGeral').onclick = vistaGeral;
 $('#btPainel').onclick = (e) => { const f = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', f); e.currentTarget.textContent = f ? 'Mostrar painel' : 'Ocultar painel'; };
@@ -319,6 +338,7 @@ setInterval(() => { if (performance.now() - tSimUlt > 300) { avancarSim(); aoViv
 let erroLaco = false;
 renderer.setAnimationLoop(() => { try { quadro(); } catch (e) { if (!erroLaco) { erroLaco = true; mostrarErro('Erro no desenho 3D: ' + e.message); } } });
 function quadro() {
+  if (mapaSujo) { mapaSujo = false; montarMapa(); }
   const dtReal = Math.min(relogio.getDelta(), 0.5), dt = Math.min(dtReal, 0.1), t = relogio.elapsedTime;
   avancarSim();
   if (voo) {
@@ -331,7 +351,7 @@ function quadro() {
   matJato.opacity = Math.max(0, Math.min(0.3, (sim.s.temp - 250) / 2200)) * (0.85 + 0.15 * Math.sin(t * 30));
   faisca.intensity = sim.s.ign ? (Math.random() < 0.5 ? 2.5 : 0) : 0;
   pintar(t);
-  controles.update(); renderer.render(cena, camera); rotulos();
+  controles.update(); renderer.render(cena, camera); rotulos(); marcas.atualizar(camera, vista.clientWidth, vista.clientHeight, selSensor);
   acum += dt;
   if (acum > 0.2) { acum = 0; aoVivo(); }
 }
@@ -349,6 +369,7 @@ function abrirAba(nome) {
   document.querySelectorAll('#abas button').forEach((b) => b.classList.toggle('ativa', b.dataset.aba === nome));
   if (location.hash !== '#' + nome) history.replaceState(null, '', '#' + nome);
   if (nome !== 'editar') modoAdicionar = false;
+  if (nome === 'sensores' && mudou && !marcas.ativo) ligarMapaNum(true);
   anexarGizmo();
   desenhar[nome](); if (mudou) conteudo.scrollTop = 0;
 }
@@ -390,7 +411,7 @@ const grupoTipo = (t) => /controle eletr|FADEC/i.test(t) ? 'Controle eletrônico
 function cartaoSensor(s, aberto = false) {
   const v = valorSensor(sim, Object.assign({}, s, { falha: falhasSensor[s.id] })), est = estadoSensor(s);
   return `<div class="cartao clic sensor ${est === 'cr' ? 'critico' : est === 'al' ? 'alerta' : ''}${s.id === selSensor ? ' ativo' : ''}" data-sensor="${s.id}">
-    <div class="tit"><span>${esc(s.n)}</span><span class="tag ${/HUMS|adicional|usuário/i.test(s.orig) ? 'lar' : ''}">${esc(/HUMS|adicional/i.test(s.orig) ? 'adicional' : /usuário/i.test(s.orig) ? 'seu sensor' : 'de série')}</span></div>
+    <div class="tit"><span><b class="num-sen" style="--c:#${COR_TIPO(s.tipo).toString(16).padStart(6, '0')}">${NUM.get(s.id) ?? '?'}</b> ${esc(s.n)}</span><span class="tag ${/HUMS|adicional|usuário/i.test(s.orig) ? 'lar' : ''}">${esc(/HUMS|adicional/i.test(s.orig) ? 'adicional' : /usuário/i.test(s.orig) ? 'seu sensor' : 'de série')}</span></div>
     <div class="leitura"><span class="valor" data-v="${s.id}">${s.lim === 'bool' ? (v >= 1 ? 'ATIVO' : 'normal') : fmt(v, s.un === 'ips' ? 2 : 1) + ' ' + esc(s.un)}</span></div>
     <div class="sub">${esc(s.tipo)} · em <b>${esc(MOTOR.partes[s.parte]?.n || s.parte)}</b>${s.lim === 'max' || s.lim === 'min' ? ` · alerta ${s.al} · crítico ${s.cr} ${esc(s.un)}` : ''}</div>
     <details ${aberto ? 'open' : ''}><summary>Como instalar</summary><p class="nota">${esc(s.inst)}</p><p class="nota">Posição no modelo (m): ${s.pos.map((x) => fmt(x, 3)).join(' / ')} · origem: ${esc(s.orig)}</p></details>
@@ -399,12 +420,13 @@ function cartaoSensor(s, aberto = false) {
 function desenharFichaSensor() { if (abaAtual === 'sensores') desenhar.sensores(); else if (abaAtual === 'editar') desenhar.editar(); }
 desenhar.sensores = () => {
   const grupos = {};
-  for (const s of SENS) (grupos[grupoTipo(s.tipo)] ??= []).push(s);
+  for (const s of ordemMapa()) (grupos[grupoTipo(s.tipo)] ??= []).push(s);
   const sel = selSensor && SENS.find((s) => s.id === selSensor);
   const nSerie = SENS.filter((s) => !/HUMS|adicional|usuário/i.test(s.orig)).length;
   conteudo.innerHTML = `${sel ? `<h2>Sensor selecionado</h2>${cartaoSensor(sel, true)}` : ''}
     <h2 style="margin-top:${sel ? 18 : 0}px">Mapa de instalação dos sensores</h2>
-    <p class="nota">${SENS.length} pontos de medição no ${esc(MOTOR.nome)}: ${nSerie} de série (instrumentação do motor/helicóptero) e ${SENS.length - nSerie} adicionais para monitoramento de condição (HUMS) e testes. Clique num ponto colorido no 3D ou num cartão; use <b>Rótulos</b> para ver os nomes.</p>
+    <p class="nota">${SENS.length} pontos de medição no ${esc(MOTOR.nome)}: ${nSerie} de série (instrumentação do motor/helicóptero) e ${SENS.length - nSerie} adicionais para monitoramento de condição (HUMS) e testes. <b>Cada número no 3D é um ponto de instalação</b> e corresponde ao número do cartão abaixo; clique no número ou no cartão para ver onde fica, como instalar e como testar.</p>
+    <div class="linha"><button class="bt pri" data-dado="folha">Folha de instalação dos sensores (imprimir / PDF)</button><button class="bt" id="btNumMapa">${marcas.ativo ? 'Esconder números do 3D' : 'Mostrar números no 3D'}</button></div>
     <div class="legenda">${[['Termopar', 0xff6a3d], ['Pressão / torque', 0x3fa7ff], ['Rotação', 0x46c08a], ['Vibração', 0xb26bff], ['Temperatura RTD', 0xff9f6a], ['Discreto (limalha, ΔP)', 0xf0b83c], ['Outros', 0xd0d6de]].map(([n, c]) => `<span><i style="background:#${c.toString(16).padStart(6, '0')}"></i>${n}</span>`).join('')}</div>
     <div class="linha"><button class="bt" id="btTodosRot">${verRotulos ? 'Esconder rótulos' : 'Mostrar rótulos no 3D'}</button><button class="bt" data-ir="testes">Testar os sensores ›</button><a class="bt" href="motores.html?m=${CFG.id}">Comparar com os outros modelos ›</a></div>
     ${Object.entries(grupos).map(([g, l]) => `<h3>${esc(g)} (${l.length})</h3>${l.filter((s) => s.id !== selSensor).map((s) => cartaoSensor(s)).join('')}`).join('')}
@@ -551,6 +573,8 @@ desenhar.dados = () => {
     <h3>Edição do motor e dos sensores</h3>
     <div class="linha"><button class="bt pri" data-dado="json">Exportar edição (.json)</button><button class="bt" data-dado="abrir">Importar edição…</button><input type="file" id="arqImport" accept=".json,application/json" hidden></div>
     <h3>Planilhas (CSV para Excel)</h3>
+    <h3>Mapa de onde colocar os sensores</h3>
+    <div class="linha"><button class="bt pri" data-dado="folha">Folha de instalação (imprimir / PDF)</button></div>
     <div class="linha"><button class="bt" data-dado="csvmapa">Mapa de sensores</button><button class="bt" data-dado="csvlog">Registro dos testes</button><button class="bt" data-dado="csvbite">Teste de sensores</button><button class="bt" data-dado="csvman">Checklist de manutenção</button></div>
     <h3>Sensores reais</h3><p class="nota">Os ids do mapa (ex.: ${SENS.slice(0, 3).map((s) => esc(s.id)).join(', ')}) servem para enviar leituras reais ao servidor de telemetria do manual (api/telemetria.php, veja o README).</p>
     <h3>Apagar</h3><div class="linha"><button class="bt perigo" data-dado="apagar">Apagar edição e checklists deste motor</button></div>`;
@@ -560,6 +584,7 @@ function acaoDados(a) {
   const nome = `motor_${CFG.id}_${MOTOR.id}`;
   if (a === 'json') return baixar(`${nome}_edicao_${dataArq()}.json`, JSON.stringify({ app: 'manutencao-interativa-motor', modelo: CFG.id, motor: MOTOR.id, exportado: new Date().toISOString(), edicao: ed }, null, 2), 'application/json');
   if (a === 'abrir') return $('#arqImport').click();
+  if (a === 'folha') return folhaInstalacao();
   if (a === 'csvmapa') return baixar(`${nome}_mapa_sensores_${dataArq()}.csv`, csv([['Id', 'Sensor', 'Tipo', 'Peça', 'X (m)', 'Y (m)', 'Z (m)', 'Unidade', 'Alerta', 'Crítico', 'Origem', 'Como instalar', 'Como testar'],
     ...SENS.map((s) => [s.id, s.n, s.tipo, MOTOR.partes[s.parte]?.n || s.parte, ...s.pos, s.un, s.al ?? '', s.cr ?? '', s.orig, s.inst, s.teste])]), 'text/csv');
   if (a === 'csvlog') return baixar(`${nome}_registro_${dataArq()}.csv`, csv([['t (s)', 'Nível', 'Evento'], ...sim.evts.map((e) => [e.t.toFixed(1), e.nivel, e.txt])]), 'text/csv');
@@ -593,6 +618,7 @@ conteudo.addEventListener('click', (e) => {
   if (t.dataset.dado) { acaoDados(t.dataset.dado); return; }
   if (t.dataset.ir) { abrirAba(t.dataset.ir); return; }
   if (t.dataset.gizmo) { modoGizmo = t.dataset.gizmo; anexarGizmo(); desenhar.editar(); return; }
+  if (t.id === 'btNumMapa') { ligarMapaNum(!marcas.ativo); desenhar.sensores(); return; }
   if (t.id === 'btTodosRot') { verRotulos = !verRotulos; $('#btRotulos').classList.toggle('on', verRotulos); desenhar.sensores(); return; }
   if (t.id === 'btPartida') { sim.partida(falhaPartida); desenhar.testes(); return; }
   if (t.id === 'btAbortar') { if (sim.modo === 'partida') sim.abortar('Partida abortada pelo operador'); else sim.abortar('Corte do motor pelo operador', 'info'); return; }
@@ -634,6 +660,27 @@ conteudo.addEventListener('change', (e) => {
   else if (t.id === 'arqImport') { const f = t.files[0]; if (f) f.text().then((x) => { msgDados = importar(x); desenhar.dados(); }); }
 });
 conteudo.addEventListener('input', (e) => { if (e.target.id === 'selInt') { intensidade = +e.target.value; $('#vInt').textContent = Math.round(intensidade * 100) + '%'; } });
+
+/* ---------- folha de instalação dos sensores (vistas numeradas + tabela) ---------- */
+async function folhaInstalacao() {
+  const win = abrirJanela();
+    const lista = ordemMapa(), v = new THREE.Vector3();
+  const pontos = lista.filter((s) => marcadores[s.id]).map((s) => ({ n: NUM.get(s.id), cor: COR_TIPO(s.tipo), pos: marcadores[s.id].localToWorld(new THREE.Vector3(0, 0.05, 0)),
+    dir: new THREE.Vector3(...(s.dir || [0, 1, 0])).transformDirection(motor.raiz.matrixWorld) }));
+  const estado = { vis: grpSens.visible, sel: selPeca, sen: selSensor };
+  const imagens = await capturarVistas({ renderer, cena, camera, alvo: VISTA.alvo.clone(), dist: 1.75 * S, pontos, esconder: [grade],
+    vistas: [{ nome: 'Lado direito', dir: [0.12, 0.22, 1] }, { nome: 'Lado esquerdo', dir: [0.12, 0.22, -1] }, { nome: 'Vista de cima (frente para o alto)', dir: [0.001, 1, 0], up: [1, 0, 0] }, { nome: 'Vista de baixo', dir: [0.001, -1, 0], up: [1, 0, 0] }],
+    antes: () => { grpSens.visible = true; gizmo.visible = false; selPeca = selSensor = null; pintar(0); }, depois: () => { grpSens.visible = estado.vis; gizmo.visible = true; selPeca = estado.sel; selSensor = estado.sen; } });
+  escreverFolha(win, {
+    titulo: `Mapa de instalação dos sensores – ${MOTOR.nome}`,
+    subtitulo: `${CFG.nome} · ${lista.length} pontos de medição · Manutenção Interativa · ${new Date().toLocaleDateString('pt-BR')}`,
+    legenda: [['Termopar', 0xff6a3d], ['Pressão / torque', 0x3fa7ff], ['Rotação', 0x46c08a], ['Vibração', 0xb26bff], ['Temperatura RTD', 0xff9f6a], ['Discreto (limalha, ΔP)', 0xf0b83c], ['Outros', 0xd0d6de]],
+    imagens, cab: ['Nº', 'Sensor', 'Tipo', 'Onde instalar (peça)', 'Posição no modelo (m)', 'Faixa / limites', 'Como instalar', 'Como testar'],
+    linhas: lista.map((s) => ({ n: NUM.get(s.id), cor: COR_TIPO(s.tipo), cols: [s.n + (/HUMS|adicional/i.test(s.orig) ? ' (adicional)' : /usuário/i.test(s.orig) ? ' (seu)' : ''), s.tipo, MOTOR.partes[s.parte]?.n || s.parte,
+      s.pos.map((x) => fmt(x, 3)).join(' / '), (s.lim === 'max' || s.lim === 'min') ? `alerta ${s.al} · crítico ${s.cr} ${s.un}` : `faixa ${(s.faixa || []).join('–')} ${s.un}`, s.inst, s.teste] })),
+    nota: 'Posições ilustrativas no modelo 3D (eixo X = eixo do motor, +X = frente). Torque, gap, vedação e roteamento oficiais: manual do motor e do fabricante do sensor. Sensores adicionais (HUMS) exigem projeto aprovado para instalação em aeronave.'
+  });
+}
 
 // link direto para um sensor: motor.html?m=505&s=tc_1 (usado pela tabela de motores e sensores)
 const sIni = new URLSearchParams(location.search).get('s');

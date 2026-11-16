@@ -25,7 +25,7 @@ Endereços antigos do manual do 429 (ex.: `/#sensores`) são redirecionados para
 |---|---|
 | Descrever | Texto livre → destaca os componentes no 3D e lista as tarefas relacionadas |
 | Inspeções | Inspeções programadas com checklist (marcações salvas no navegador) |
-| Sensores | Telemetria IoT por componente, mapa de saúde no 3D e **testes em modelo**: ciclo de voo e estresse progressivo (mostra a ordem em que os componentes chegam ao alerta e ao crítico) |
+| Sensores | **Mapa de onde colocar os sensores** (botão *Mapa de sensores*: um número sobre cada componente, ligado ao cartão do sensor) e **folha de instalação** para imprimir/salvar em PDF; telemetria IoT por componente, mapa de saúde no 3D e **testes em modelo**: ciclo de voo e estresse progressivo (mostra a ordem em que os componentes chegam ao alerta e ao crítico) |
 | Controle | Vencimentos por horas, previsão de data e (no 429) calculadora de RIN |
 | Limites | Componentes com vida limite |
 | Eventos | Inspeções condicionais: pouso duro, parada brusca, sobretorque, sobretemperatura, raio… |
@@ -61,7 +61,7 @@ Dimensões, peso e limites (temperatura dos gases, Ng, Np, torque, óleo) vêm d
 | Aba | O que faz |
 |---|---|
 | Motor | Ficha técnica, caminho do ar, peças por módulo (clique para ver a ficha), fontes |
-| Sensores | **Mapa de instalação**: termopares, rotação, torque, pressões, temperaturas, limalha, fluxo, vibração (HUMS), canais do FADEC (Arrius 2R e C47E/4 com canal B; PW207D1 com estado do EEC)… com *como instalar* e *como testar* de cada ponto |
+| Sensores | **Mapa de instalação numerado** (botão *Mapa nº*: um número em cada ponto do 3D, igual ao do cartão) e **folha de instalação** para imprimir/salvar em PDF, com 4 vistas numeradas e a tabela de onde e como instalar e testar cada sensor: termopares, rotação, torque, pressões, temperaturas, limalha, fluxo, vibração (HUMS), canais do FADEC (Arrius 2R e C47E/4 com canal B; PW207D1 com estado do EEC)… com *como instalar* e *como testar* de cada ponto |
 | Testes | **Partida (ignição)** com falhas (quente, pendurada, sem ignição, arranque fraco, sem óleo; FADEC aborta, motor hidromecânico depende do operador) · **Perfil de voo** (OAT, altitude e peso) · **Estresse** (sobretorque, sobretemperatura, sobrevelocidade, vibração, perda de óleo, FOD) com mapa de carga nas peças e estimativa didática de vida consumida · **Teste de sensores (BITE)** com falhas injetadas (aberto, curto, deriva, ruído, intermitente) · registro de eventos e excedências |
 | Manutenção | Boroscopia, lavagem do compressor, detectores de limalha, filtro de combustível, ignição, termopares, verificação de potência, vibração, troca de módulos – acende as peças e ajusta corte/vista explodida |
 | Editar | Mover/girar/escalar peças e sensores (gizmo W/E/R), mudar cor, ocultar peça, **instalar sensor novo clicando no motor**, editar limites e textos |
@@ -120,6 +120,7 @@ preencha `CHAVE` em `api/telemetria.php` e mande o cabeçalho `X-Chave`.
 | `modelo.js` | Helicópteros 3D procedurais (429 + formas do 505, 206 e 407) |
 | `motor3d.js` | Motores 3D procedurais (arquiteturas M250, PW200 e Arrius) |
 | `simulacao.js` | Simulação de partida, voo, estresse e teste de sensores |
+| `mapa.js` | Mapa numerado dos sensores no 3D e folha de instalação para imprimir |
 | `carregar.js` | Lê o modelo da URL e carrega os dados |
 | `style.css` | Aparência |
 | `modelos/catalogo.js` | Lista dos modelos (nome, motor, cor, arquivos) |
