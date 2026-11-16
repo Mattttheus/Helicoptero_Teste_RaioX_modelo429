@@ -184,3 +184,33 @@ body.pagina-painel { overflow: auto; }
 .vitrine .legenda-vit b { font-size: 20px; display: block; } .vitrine .legenda-vit span { color: var(--suave); font-size: 13px; }
 .tabela-mot { font-size: 12px; } .tabela-mot td, .tabela-mot th { padding: 5px 6px; }
 @media (max-width: 900px) { .painel-ini { grid-template-columns: 1fr; } .vitrine { min-height: 300px; order: -1; } .modelos { grid-template-columns: 1fr; } }
+
+/* ---------- Motores e sensores por modelo (motores.html) ---------- */
+body.pagina-motores { overflow: auto; }
+.motores-ini { display: grid; grid-template-columns: minmax(560px, 1.55fr) minmax(320px, 1fr); min-height: 100vh; }
+.motores-ini .lado { padding: 24px 24px 20px; min-width: 0; }
+.motores-ini .vitrine { position: sticky; top: 0; height: 100vh; }
+.motores-ini .marca-grande { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.motores-ini .marca-grande .selo { font-size: 20px; padding: 9px 11px; }
+.motores-ini h1 { font-size: 22px; } .motores-ini h1 + p { margin: 2px 0 0; color: var(--suave); font-size: 13px; }
+.rolagem { overflow-x: auto; }
+table.matriz { border-collapse: separate; border-spacing: 0; min-width: 760px; }
+table.matriz th { vertical-align: bottom; border-bottom: 2px solid var(--borda); }
+table.matriz th.col { border-top: 4px solid var(--cor); cursor: pointer; } table.matriz th.col span { display: block; font-weight: 400; font-size: 11px; color: var(--suave); }
+table.matriz th.ativo, table.matriz td.ativo { background: #17202c; }
+table.matriz td { width: 21%; } table.matriz td.gr { width: 16%; font-weight: 600; font-size: 12px; } table.matriz td.gr small { display: block; font-weight: 400; color: var(--suave); font-size: 10.5px; }
+.sen { display: block; position: relative; text-decoration: none; color: inherit; background: var(--cartao); border: 1px solid var(--borda); border-left: 3px solid var(--ok); border-radius: 7px; padding: 4px 7px; margin: 3px 0; font-size: 11.5px; }
+.sen:hover { border-color: var(--acento); } .sen b { display: block; font-weight: 600; } .sen small { display: block; color: var(--suave); font-size: 10.5px; }
+.sen.adic { border-left-color: #b26bff; } .sen.seu { border-left-color: var(--acento); }
+.sen i { display: inline-block; margin-top: 2px; font-style: normal; font-size: 9.5px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; border: 1px solid var(--borda); border-radius: 4px; padding: 0 4px; }
+.nao { color: #46505e; }
+.bolinha { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--cor); margin-right: 6px; }
+.tabela-mot tr.ativo td { background: #17202c; }
+.topo-vit { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 2; display: flex; justify-content: center; }
+.topo-vit .seg { display: flex; gap: 4px; background: #121821cc; padding: 4px; border-radius: 10px; border: 1px solid var(--borda); }
+.topo-vit .seg .bt { padding: 5px 12px; border-top: 3px solid var(--cor); } .topo-vit .seg .bt.ativo { background: var(--cor); color: #17100a; font-weight: 700; }
+.vitrine #rotulos { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.vitrine .legenda-vit .legenda { margin-top: 6px; }
+.motores-painel { margin-top: 4px; }
+.motores-painel td .chip { display: inline-block; margin: 1px 3px 1px 0; font-size: 10.5px; padding: 1px 7px; cursor: default; }
+@media (max-width: 1000px) { .motores-ini { grid-template-columns: 1fr; } .motores-ini .vitrine { position: relative; height: 60vh; order: -1; } }

@@ -39,6 +39,7 @@
       p3: [[-0.02, -0.14, -0.24], [0, -0.5, -0.86]], t1: [[0.19, 0.252, 0], [0, 1, 0]], ign: [[0.05, -0.3, 0.207], [0, 0, 1]], corrente: [[0.16, 0.26, 0.268], [0, 0, 1]],
       filtroComb: [[0.26, -0.24, -0.142], [0, 0, -1]]
     },
+    fadecCanais: { canais: 1, ecu: [[-0.05, -0.389, 0.08], [0, 1, 0]] },
     tarefasExtra: [{ id: 'oei', n: 'Excedência OEI (bimotor)', quando: 'Após uso das potências de um motor inoperante', partes: ['turbina_gp', 'turbina_livre', 'camisa', 'caixa_reducao'], corte: true, explodir: 0, passos: [
       'Baixar o histórico de excedências OEI nos displays do Bell 429.', 'Executar as ações mandatórias da seção de limites do manual do motor P&WC conforme o tempo e a faixa usados.',
       'Uso do limit override: além do motor, seguir o BHT-429-MPI para a transmissão (aba Eventos do manual).'] }]

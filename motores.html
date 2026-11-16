@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motores e Sensores · Manutenção Interativa</title>
+  <meta name="description" content="Manutenção Interativa: tabela dos motores 3D dos helicópteros Bell 505, 429, 206 e 407 com os sensores de cada motor, organizada por modelo, e a posição de cada sensor no modelo 3D.">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body class="pagina-motores">
+  <div class="motores-ini">
+    <section class="lado">
+      <div class="marca-grande"><a href="index.html" class="selo" title="Voltar ao painel">MI</a>
+        <div><h1>Motores 3D e sensores por modelo</h1><p>Manutenção Interativa · passe o mouse num sensor para ver onde ele fica no motor 3D; clique para abrir no motor do modelo</p></div>
+      </div>
+      <div class="linha"><a class="bt" href="index.html">‹ Painel dos modelos</a><button class="bt" id="btSoSerie">Só sensores de série</button><button class="bt" data-dado="csv">Exportar tabela (CSV)</button></div>
+      <h3>Motores</h3>
+      <div id="resumo"><p class="nota">Carregando os motores…</p></div>
+      <h3>Sensores de cada motor (organizados por grandeza medida)</h3>
+      <div class="rolagem"><table class="matriz" id="matriz"></table></div>
+      <p class="nota"><b>de série</b> = instrumentação do motor/helicóptero · <b>adicional</b> = sugestão de monitoramento de condição (HUMS) e testes · <b>seu</b> = sensor que você instalou na aba Editar do motor 3D (salvo neste navegador).
+        Posições, instalação e teste de cada sensor: abra o motor 3D do modelo, aba Sensores. Instalar sensores adicionais em aeronave exige projeto aprovado.</p>
+    </section>
+    <section class="vitrine" id="vitrine">
+      <div class="topo-vit"><div class="seg" id="segModelo"></div></div>
+      <div class="legenda-vit"><b id="vitNome">—</b><span id="vitInfo"></span>
+        <div class="legenda" id="vitLegenda"></div></div>
+      <div id="rotulos"></div>
+    </section>
+  </div>
+  <div id="erro" hidden></div>
+
+  <script src="modelos/catalogo.js"></script>
+  <script type="module" src="motores.js"></script>
+  <script>
+    if (location.protocol === 'file:') {
+      var e = document.getElementById('erro'); e.hidden = false;
+      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/motores.html</b> (WAMP ligado) ou pelo GitHub Pages.';
+    }
+  </script>
+</body>
+</html>

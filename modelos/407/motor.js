@@ -41,6 +41,7 @@
       p3: [[0.1, -0.04, 0.24], [0, 0, 1]], t1: [[0.448, 0.12, 0.06], [1, 0.3, 0.2]], ign: [[-0.42, -0.13, 0.212], [0, 0, 1]], corrente: [[0.05, -0.1, 0.225], [0, 0.4, 1]],
       filtroComb: [[-0.06, -0.21, -0.178], [0, 0, -1]]
     },
+    fadecCanais: { canais: 2, rotulo: 'C47E/4 – 407GXi', ng_b: [[-0.05, -0.02, -0.172], [0, 0, -1]], np_b: [[-0.15, -0.02, -0.172], [0, 0, -1]], ecu: [[-0.12, -0.389, 0.08], [0, 1, 0]] },
     tarefasExtra: [{ id: 'fadec', n: 'Teste do FADEC e da reserva manual', quando: 'Inspeção periódica / após falha de controle', partes: ['ecu', 'controle_comb'], corte: false, explodir: 0.2, passos: [
       'Ler as falhas e excedências registradas na ECU (e no G1000H NXi do 407GXi).', 'C47B: testar a transição para o modo manual (reserva hidromecânica) conforme o RFM/manual.', 'C47E/4: verificar os dois canais e a transferência entre eles.',
       'Conferir os sensores de Ng, Np, MGT e torque usados pela ECU (mapa de sensores).'] }]

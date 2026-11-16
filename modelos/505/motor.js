@@ -47,6 +47,7 @@
       p3: [[0.0, -0.15, -0.242], [0, -0.53, -0.85]], t1: [[0.2, 0.267, 0], [0, 1, 0]], ign: [[0.05, -0.32, 0.217], [0, 0, 1]], corrente: [[0.16, -0.24, 0.292], [0, 0, 1]],
       filtroComb: [[0.36, -0.38, -0.172], [0, 0, -1]]
     },
+    fadecCanais: { canais: 2, ng_b: [[0.24, -0.26, -0.162], [0, 0, -1]], np_b: [[0.24, 0.2, 0.152], [0, 0, 1]], ecu: [[-0.06, -0.414, 0.08], [0, 1, 0]] },
     pacQuando: 'A cada 25 h de voo; recomenda-se diariamente (guia de manutenção do Bell 505)',
     pacPassos: [
       'APAC no Garmin G1000H NXi (ou MPAC por gráficos), em solo, pairado ou em voo à frente.',

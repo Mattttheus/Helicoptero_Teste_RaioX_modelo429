@@ -85,6 +85,20 @@
     S('filtroComb', { n: 'Bypass iminente do filtro de combustível', tipo: 'Interruptor de pressão diferencial', var: 'filtroComb', un: '', lim: 'bool', faixa: [0, 1], parte: 'controle_comb', orig: 'Fabricante do motor',
       inst: 'Na carcaça do filtro de combustível do motor; ligar à luz de FUEL FILTER.',
       teste: 'Aplicar pressão diferencial de atuação com bancada; a luz deve acender no valor do manual.' });
+    // Controle eletrônico (FADEC): sondas de rotação do canal B (quando há 2 canais) e estado do controle
+    const F = d.fadecCanais;
+    if (F) {
+      const base = (id) => sens.find((s) => s.id === id);
+      if (F.canais === 2) for (const [id, ref, nome] of [['ng_b', 'ng', 'Ng / N1 – canal B do FADEC'], ['np_b', 'np', 'Np / N2 – canal B do FADEC']]) {
+        const r = base(ref); if (!r || !F[id]) continue;
+        sens.push(Object.assign({}, r, { id, n: nome + (F.rotulo ? ` (${F.rotulo})` : ''), pos: F[id][0], dir: F[id][1],
+          inst: 'Sonda independente para o canal B do controle eletrônico, no mesmo trem de engrenagens do canal A. Ajustar o gap e frenar o conector; chicote do canal B separado do canal A (redundância).',
+          teste: 'Gerador de frequência em 3 pontos e comparação entre canais A e B (diferença dentro do limite do manual); simular perda de um canal e confirmar a transferência.' }));
+      }
+      if (F.ecu) sens.push({ id: 'ecu_estado', n: F.canais === 2 ? 'Estado dos canais A/B do FADEC' + (F.rotulo ? ` (${F.rotulo})` : '') : 'Estado do controle eletrônico (falha → reserva manual)', tipo: 'Sinal discreto do controle eletrônico (saúde/falha)', var: 'falhaEcu', un: '', lim: 'bool', faixa: [0, 1], parte: 'ecu', orig: 'Fabricante do motor', pos: F.ecu[0], dir: F.ecu[1],
+        inst: 'Saída discreta do ECU/EEC para os alarmes do helicóptero (FADEC FAIL / degradado). Conectores frenados e chicote blindado longe da ignição.',
+        teste: 'Ler as falhas registradas no ECU; simular a falha de um canal (ou do controle) e confirmar o alarme e a transferência para o outro canal / modo de reserva conforme o manual.' });
+    }
     return sens.concat(d.sensoresExtra || []);
   }
 

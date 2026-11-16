@@ -378,7 +378,7 @@ desenhar.motor = () => {
 };
 
 /* ---------- Sensores (mapa de instalação) ---------- */
-const grupoTipo = (t) => /termopar/i.test(t) ? 'Temperatura dos gases (termopares)' : /aceler/i.test(t) ? 'Vibração (acelerômetros)' : /rpm|pickup|monopolo|tacom/i.test(t) ? 'Rotação' : /torque|torquí/i.test(t) ? 'Torque' : /press/i.test(t) ? 'Pressão' : /rtd|bulbo|temperatura/i.test(t) ? 'Temperatura (RTD)' : /limalha|interruptor|chip/i.test(t) ? 'Detecção discreta (limalha, ΔP)' : /fluxo/i.test(t) ? 'Fluxo de combustível' : 'Elétrica e outros';
+const grupoTipo = (t) => /controle eletr|FADEC/i.test(t) ? 'Controle eletrônico (FADEC)' : /termopar/i.test(t) ? 'Temperatura dos gases (termopares)' : /aceler/i.test(t) ? 'Vibração (acelerômetros)' : /rpm|pickup|monopolo|tacom/i.test(t) ? 'Rotação' : /torque|torquí/i.test(t) ? 'Torque' : /press/i.test(t) ? 'Pressão' : /rtd|bulbo|temperatura/i.test(t) ? 'Temperatura (RTD)' : /limalha|interruptor|chip/i.test(t) ? 'Detecção discreta (limalha, ΔP)' : /fluxo/i.test(t) ? 'Fluxo de combustível' : 'Elétrica e outros';
 function cartaoSensor(s, aberto = false) {
   const v = valorSensor(sim, Object.assign({}, s, { falha: falhasSensor[s.id] })), est = estadoSensor(s);
   return `<div class="cartao clic sensor ${est === 'cr' ? 'critico' : est === 'al' ? 'alerta' : ''}${s.id === selSensor ? ' ativo' : ''}" data-sensor="${s.id}">
@@ -398,7 +398,7 @@ desenhar.sensores = () => {
     <h2 style="margin-top:${sel ? 18 : 0}px">Mapa de instalação dos sensores</h2>
     <p class="nota">${SENS.length} pontos de medição no ${esc(MOTOR.nome)}: ${nSerie} de série (instrumentação do motor/helicóptero) e ${SENS.length - nSerie} adicionais para monitoramento de condição (HUMS) e testes. Clique num ponto colorido no 3D ou num cartão; use <b>Rótulos</b> para ver os nomes.</p>
     <div class="legenda">${[['Termopar', 0xff6a3d], ['Pressão / torque', 0x3fa7ff], ['Rotação', 0x46c08a], ['Vibração', 0xb26bff], ['Temperatura RTD', 0xff9f6a], ['Discreto (limalha, ΔP)', 0xf0b83c], ['Outros', 0xd0d6de]].map(([n, c]) => `<span><i style="background:#${c.toString(16).padStart(6, '0')}"></i>${n}</span>`).join('')}</div>
-    <div class="linha"><button class="bt" id="btTodosRot">${verRotulos ? 'Esconder rótulos' : 'Mostrar rótulos no 3D'}</button><button class="bt" data-ir="testes">Testar os sensores ›</button></div>
+    <div class="linha"><button class="bt" id="btTodosRot">${verRotulos ? 'Esconder rótulos' : 'Mostrar rótulos no 3D'}</button><button class="bt" data-ir="testes">Testar os sensores ›</button><a class="bt" href="motores.html?m=${CFG.id}">Comparar com os outros modelos ›</a></div>
     ${Object.entries(grupos).map(([g, l]) => `<h3>${esc(g)} (${l.length})</h3>${l.filter((s) => s.id !== selSensor).map((s) => cartaoSensor(s)).join('')}`).join('')}
     <p class="nota">Valores de instalação (torque, gap, posição) e procedimentos oficiais: manual do motor e do fabricante do sensor. Sensores “adicionais” são sugestões de monitoramento – instalação em aeronave exige projeto aprovado (alteração/STC).</p>`;
 };
@@ -627,5 +627,8 @@ conteudo.addEventListener('change', (e) => {
 });
 conteudo.addEventListener('input', (e) => { if (e.target.id === 'selInt') { intensidade = +e.target.value; $('#vInt').textContent = Math.round(intensidade * 100) + '%'; } });
 
-abrirAba(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'motor');
+// link direto para um sensor: motor.html?m=505&s=tc_1 (usado pela tabela de motores e sensores)
+const sIni = new URLSearchParams(location.search).get('s');
+if (sIni && SENS.some((x) => x.id === sIni)) { abrirAba('sensores'); selecionarSensor(sIni); desenhar.sensores(); }
+else abrirAba(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'motor');
 window.motor3d = { CFG, MOTOR, sim, motor, SENS: () => SENS, abrirAba, abrirTarefa, selecionarPeca, selecionarSensor }; // útil para testes no console

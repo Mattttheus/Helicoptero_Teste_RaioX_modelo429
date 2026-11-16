@@ -28,6 +28,11 @@
       </div>
       <div class="modelos" id="modelos"></div>
       <div>
+        <h3>Motores 3D e sensores por modelo</h3>
+        <div id="motoresPainel"><p class="nota">Carregando os motores…</p></div>
+        <div class="linha"><a class="bt pri" href="motores.html">Abrir a tabela completa de motores e sensores ›</a></div>
+      </div>
+      <div>
         <h3>Motorização de referência</h3>
         <table class="tabela-mot">
           <tr><th>Helicóptero</th><th>Motor</th><th>Configuração</th><th>Potência aprox.</th></tr>
@@ -84,6 +89,22 @@
     function ajustar() { const w = vit.clientWidth, h = vit.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     new ResizeObserver(ajustar).observe(vit); ajustar();
     mostrar(CAT[0].id);
+    // Tabela resumida dos motores e dos seus sensores (dados de modelos/<id>/motor.js)
+    import('./carregar.js').then(async ({ carregarScripts }) => {
+      await carregarScripts(['modelos/motor_comum.js']);
+      const MOT = {};
+      for (const c of CAT) { await carregarScripts([c.motorArq]); MOT[c.id] = window.MOTOR; }
+      const grupos = [['Temperatura dos gases', (s) => s.var === 'temp'], ['Ng/N1', (s) => s.var === 'ng' && s.id !== 'sangria'], ['Np/N2', (s) => s.var === 'np'], ['Torque', (s) => s.var === 'tq'],
+        ['Óleo (pressão/temp.)', (s) => s.var === 'oleoP' || s.var === 'oleoT'], ['Limalha', (s) => s.var === 'chip'], ['Combustível', (s) => ['combP', 'ff', 'filtroComb'].includes(s.var)],
+        ['Vibração', (s) => s.var === 'vibC' || s.var === 'vibT'], ['P3 / T1', (s) => s.var === 'p3' || s.var === 't1'], ['Ignição / starter', (s) => s.var === 'ign' || s.var === 'corrente'],
+        ['FADEC (canais)', (s) => s.var === 'falhaEcu' || /canal B/i.test(s.n)], ['Válvula de sangria', (s) => s.id === 'sangria']];
+      document.getElementById('motoresPainel').innerHTML = `<table class="tabela-mot motores-painel"><tr><th>Modelo</th><th>Motor 3D</th><th>Sensores</th><th></th></tr>${CAT.map((c) => {
+        const M = MOT[c.id], S = M.sensores;
+        return `<tr><td><span class="bolinha" style="--cor:${c.cor}"></span><b>${esc(c.nome)}</b></td><td>${esc(M.nome)}${M.qtd > 1 ? ` ×${M.qtd}` : ''}<div class="nota" style="margin:0">temperatura: ${esc(M.sim.temp)}</div></td>
+          <td><b>${S.length}</b> pontos<div>${grupos.map(([n, f]) => { const k = S.filter(f).length; return k ? `<span class="chip">${esc(n)}${k > 1 ? ' ×' + k : ''}</span>` : ''; }).join('')}</div></td>
+          <td><a class="bt mini" href="motor.html?m=${c.id}#sensores">Motor 3D</a> <a class="bt mini" href="motores.html?m=${c.id}">Tabela</a></td></tr>`; }).join('')}</table>`;
+    }).catch((e) => { document.getElementById('motoresPainel').innerHTML = '<p class="nota">Não foi possível carregar os motores: ' + esc(e.message) + '</p>'; });
+
     const rel = new THREE.Clock();
     renderer.setAnimationLoop(() => { const dt = rel.getDelta(); for (const r of atual.rotores) r.obj.rotation[r.eixo] += dt * r.vel * 0.6; ctl.update(); renderer.render(cena, camera); });
   </script>

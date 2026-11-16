@@ -14,7 +14,8 @@ Cada modelo tem também o **motor em 3D editável**, com **mapa de instalação 
 |---|---|
 | `index.html` | Painel de entrada: escolha do modelo, vitrine 3D e tabela de motorização |
 | `manual.html?m=<id>` | Manual interativo do helicóptero (`505`, `429`, `206`, `407`) |
-| `motor.html?m=<id>` | Motor 3D do modelo: peças, sensores, testes, manutenção e edição |
+| `motor.html?m=<id>` | Motor 3D do modelo: peças, sensores, testes, manutenção e edição (`&s=<sensor>` abre direto num sensor) |
+| `motores.html` | **Tabela dos motores 3D com os sensores de cada motor, por modelo**: resumo dos 4 motores e matriz grandeza × modelo; passar o mouse num sensor marca a posição dele no motor 3D, clicar abre o motor do modelo naquele sensor; exporta CSV |
 
 Endereços antigos do manual do 429 (ex.: `/#sensores`) são redirecionados para `manual.html?m=429`.
 
@@ -59,7 +60,7 @@ Dimensões, peso e limites (temperatura dos gases, Ng, Np, torque, óleo) vêm d
 | Aba | O que faz |
 |---|---|
 | Motor | Ficha técnica, caminho do ar, peças por módulo (clique para ver a ficha), fontes |
-| Sensores | **Mapa de instalação**: termopares, rotação, torque, pressões, temperaturas, limalha, fluxo, vibração (HUMS)… com *como instalar* e *como testar* de cada ponto |
+| Sensores | **Mapa de instalação**: termopares, rotação, torque, pressões, temperaturas, limalha, fluxo, vibração (HUMS), canais do FADEC (Arrius 2R e C47E/4 com canal B; PW207D1 com estado do EEC)… com *como instalar* e *como testar* de cada ponto |
 | Testes | **Partida (ignição)** com falhas (quente, pendurada, sem ignição, arranque fraco, sem óleo; FADEC aborta, motor hidromecânico depende do operador) · **Perfil de voo** (OAT, altitude e peso) · **Estresse** (sobretorque, sobretemperatura, sobrevelocidade, vibração, perda de óleo, FOD) com mapa de carga nas peças e estimativa didática de vida consumida · **Teste de sensores (BITE)** com falhas injetadas (aberto, curto, deriva, ruído, intermitente) · registro de eventos e excedências |
 | Manutenção | Boroscopia, lavagem do compressor, detectores de limalha, filtro de combustível, ignição, termopares, verificação de potência, vibração, troca de módulos – acende as peças e ajusta corte/vista explodida |
 | Editar | Mover/girar/escalar peças e sensores (gizmo W/E/R), mudar cor, ocultar peça, **instalar sensor novo clicando no motor**, editar limites e textos |
@@ -103,6 +104,7 @@ preencha `CHAVE` em `api/telemetria.php` e mande o cabeçalho `X-Chave`.
 | `index.html` | Painel Manutenção Interativa |
 | `manual.html` · `app.js` | Manual interativo (genérico, escolhe o modelo por `?m=`) |
 | `motor.html` · `motor.js` | Página do motor 3D |
+| `motores.html` · `motores.js` | Tabela dos motores e sensores por modelo, com visualizador 3D |
 | `modelo.js` | Helicópteros 3D procedurais (429 + formas do 505, 206 e 407) |
 | `motor3d.js` | Motores 3D procedurais (arquiteturas M250, PW200 e Arrius) |
 | `simulacao.js` | Simulação de partida, voo, estresse e teste de sensores |
