@@ -135,6 +135,8 @@ td.pn { font: 11px ui-monospace, Consolas, monospace; color: var(--suave); }
   #painel header { padding: 8px 16px 4px; } .marca p, #ajuda { display: none; }
   #selbar { max-width: calc(100% - 24px); top: auto; bottom: 8px; }
   .grade { grid-template-columns: 1fr 1fr; }
+  /* sem o painel, o 3D ocupa a tela toda (antes ia para uma coluna de largura zero e a página ficava vazia) */
+  #app.sem-painel { grid-template-columns: 1fr; grid-template-rows: 1fr 0; }
 }
 
 /* ---------- Motor 3D ---------- */
@@ -224,4 +226,4 @@ table.matriz td { width: 21%; } table.matriz td.gr { width: 16%; font-weight: 60
 .hud-val .al b { color: var(--alerta); } .hud-val .cr b { color: var(--erro); }
 .fases-voo { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 11px; color: var(--suave); margin: 8px 0; } .fases-voo span { background: var(--cartao); border: 1px solid var(--borda); border-radius: 999px; padding: 2px 8px; } .fases-voo i { font-style: normal; }
 @media (max-width: 700px) { .hud-val { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 1350px) { #selbar { top: 58px; max-width: calc(100% - 24px); } }
+@media (min-width: 861px) and (max-width: 1350px) { #selbar { top: 58px; max-width: calc(100% - 24px); } }

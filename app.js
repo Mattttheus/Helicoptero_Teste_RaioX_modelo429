@@ -2,8 +2,8 @@
 // O modelo vem da URL (manual.html?m=505); os dados ficam em modelos/<id>/ (window.HELI).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { construirHelicoptero } from './modelo.js?v=20261115f';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115f';
+import { construirHelicoptero } from './modelo.js?v=20261115g';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115g';
 
 const CFG = modeloAtual();
 try { await carregarScripts(CFG.arquivos); } catch (e) { mostrarErro(e.message); throw e; }
@@ -300,7 +300,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === '/' && !digitando) { e.preventDefault(); $('#busca').focus(); }
   else if (e.key === 'Escape') { if (e.target.id === 'busca') { e.target.blur(); abrirAba('descrever'); } else if (!digitando) { selecionar([]); marcarAtivo(null); } }
 });
-$('#btPainel').onclick = (e) => { const fechado = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', fechado); };
+$('#btPainel').onclick = (e) => { const f = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', f); e.currentTarget.textContent = f ? 'Mostrar painel' : 'Ocultar painel'; };
 function selo(aba, n, ok = false) { const b = $(`#abas [data-aba="${aba}"] .selo-n`); if (!b) return; b.hidden = !n; b.textContent = n; b.classList.toggle('ok', ok); }
 
 /* ---------- Busca global ---------- */

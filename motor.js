@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115f';
-import { construirMotor } from './motor3d.js?v=20261115f';
-import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261115f';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115g';
+import { construirMotor } from './motor3d.js?v=20261115g';
+import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261115g';
 
 const CFG = modeloAtual();
 try { await carregarScripts(['modelos/motor_comum.js', CFG.motorArq]); } catch (e) { mostrarErro(e.message); throw e; }
@@ -266,7 +266,7 @@ alternar('#btRotulos', () => (verRotulos = !verRotulos));
 alternar('#btCarga', () => (verCarga = !verCarga));
 function ligarCarga(v) { verCarga = v; $('#btCarga').classList.toggle('on', v); }
 $('#btGeral').onclick = vistaGeral;
-$('#btPainel').onclick = (e) => { const f = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', f); };
+$('#btPainel').onclick = (e) => { const f = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', f); e.currentTarget.textContent = f ? 'Mostrar painel' : 'Ocultar painel'; };
 $('#explodir').oninput = (e) => { fatorExp = +e.target.value; posicionarPecas(); };
 function explodirPara(v) { fatorExp = v; $('#explodir').value = v; posicionarPecas(); }
 

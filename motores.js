@@ -2,8 +2,8 @@
 // Passar o mouse num sensor marca a posição dele no motor 3D (à direita); clicar abre o motor do modelo naquele sensor.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { carregarScripts, mostrarErro } from './carregar.js?v=20261115f';
-import { construirMotor } from './motor3d.js?v=20261115f';
+import { carregarScripts, mostrarErro } from './carregar.js?v=20261115g';
+import { construirMotor } from './motor3d.js?v=20261115g';
 
 const CAT = window.CATALOGO;
 const $ = (s, r = document) => r.querySelector(s);

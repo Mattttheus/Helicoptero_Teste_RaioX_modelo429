@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261115f">
+  <link rel="stylesheet" href="style.css?v=20261115g">
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -47,7 +47,7 @@
       <div id="barra">
         <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
         <a class="botao" id="btManual" href="manual.html" title="Manual interativo do helicóptero">Manual 3D</a>
-        <button id="btPainel" title="Esconde ou mostra o painel">Painel</button>
+        <button id="btPainel" title="Esconde ou mostra o painel">Ocultar painel</button>
         <button id="btCorte" title="Corta as carcaças ao meio para ver o interior">Corte</button>
         <button id="btRaiox" title="Deixa as carcaças transparentes">Raio-X</button>
         <button id="btSensores" class="on" title="Mostra os pontos de instalação dos sensores">Sensores</button>
@@ -66,8 +66,8 @@
     </main>
   </div>
 
-  <script src="modelos/catalogo.js?v=20261115f"></script>
-  <script type="module" src="motor.js?v=20261115f"></script>
+  <script src="modelos/catalogo.js?v=20261115g"></script>
+  <script type="module" src="motor.js?v=20261115g"></script>
   <script>
     if (location.protocol === 'file:') {
       var e = document.getElementById('erro'); e.hidden = false;
