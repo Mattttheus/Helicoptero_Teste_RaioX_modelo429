@@ -261,12 +261,49 @@ function marcarAtivo(el) { document.querySelectorAll('#conteudo .ativo').forEach
 const conteudo = $('#conteudo');
 const desenhar = {};
 let abaAtual = 'descrever';
+const ABAS = [...document.querySelectorAll('#abas button')].map((b) => b.dataset.aba);
 function abrirAba(nome) {
+  if (!desenhar[nome]) nome = 'descrever';
   abaAtual = nome;
   document.querySelectorAll('#abas button').forEach((b) => b.classList.toggle('ativa', b.dataset.aba === nome));
+  if (nome !== 'busca') { $('#busca').value = ''; if (location.hash !== '#' + nome) history.replaceState(null, '', '#' + nome); }
   desenhar[nome](); conteudo.scrollTop = 0;
 }
 $('#abas').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) abrirAba(b.dataset.aba); });
+window.addEventListener('hashchange', () => { const n = location.hash.slice(1); if (ABAS.includes(n) && n !== abaAtual) abrirAba(n); });
+// Atalhos: Alt+1…9 troca de seção, "/" vai para a busca, Esc limpa o destaque
+window.addEventListener('keydown', (e) => {
+  const digitando = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
+  if (e.altKey && /^[1-9]$/.test(e.key) && ABAS[+e.key - 1]) { e.preventDefault(); abrirAba(ABAS[+e.key - 1]); }
+  else if (e.key === '/' && !digitando) { e.preventDefault(); $('#busca').focus(); }
+  else if (e.key === 'Escape') { if (e.target.id === 'busca') { e.target.blur(); abrirAba('descrever'); } else if (!digitando) { selecionar([]); marcarAtivo(null); } }
+});
+$('#btPainel').onclick = (e) => { const fechado = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', fechado); };
+function selo(aba, n, ok = false) { const b = $(`#abas [data-aba="${aba}"] .selo-n`); if (!b) return; b.hidden = !n; b.textContent = n; b.classList.toggle('ok', ok); }
+
+/* ---------- Busca global ---------- */
+const semAcento = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+let INDICE = null, resultados = [];
+function montarIndice() {
+  const it = [];
+  for (const id in COMPS) it.push({ tipo: 'Componente', tit: COMPS[id].n, sub: `ATA ${COMPS[id].ata} · zona ${COMPS[id].z}`, comps: [id], ir: { ficha: id } });
+  for (const x of TAREFAS) it.push({ tipo: 'Tarefa do MPI', tit: `${x.t[0]} — ${x.t[1]}`, sub: `${x.ins.nome} · acesso ${x.t[2]} · zona ${x.t[3]}`, comps: x.comps, ir: { insp: x.ins.id } });
+  for (const s of SENSORES) it.push({ tipo: 'Sensor', tit: s.n, sub: s.comp.map((c) => COMPS[c].n).join(' · '), comps: s.comp, ir: { aba: 'sensores' } });
+  for (const g of MPI.LIMITES) for (const i of g.i) it.push({ tipo: 'Limite de vida', tit: `${i[0]} · ${i[1]}`, sub: `${g.s} · ${i[2]}`, comps: i[3] || g.c || [], ir: { aba: 'limites' } });
+  for (const e of MPI.EVENTOS) it.push({ tipo: 'Evento', tit: e.n, sub: e.r, comps: [...new Set(e.a.flatMap((a) => a[1]))], ir: { evento: e.id } });
+  for (const g of ANAC) for (const i of g.i) it.push({ tipo: 'ANAC', tit: i.ref, sub: i.t, comps: i.c || [], ir: { aba: 'anac' } });
+  return it.map((o) => Object.assign(o, { chave: semAcento(o.tit + ' ' + o.sub) }));
+}
+desenhar.busca = () => {
+  INDICE ??= montarIndice();
+  const q = semAcento($('#busca').value).split(/\s+/).filter(Boolean);
+  resultados = q.length ? INDICE.filter((o) => q.every((w) => o.chave.includes(w))).slice(0, 60) : [];
+  conteudo.innerHTML = `<h2>Busca: ${resultados.length}${resultados.length === 60 ? '+' : ''} resultado${resultados.length === 1 ? '' : 's'}</h2>
+    ${resultados.length ? resultados.map((o, i) => `<div class="cartao clic" data-comps="${o.comps.join(',')}"><div class="res-tipo">${o.tipo}</div>
+      <div class="tit"><span>${esc(o.tit)}</span><button class="bt mini" data-res="${i}">Abrir ›</button></div><div class="sub">${esc(o.sub.length > 150 ? o.sub.slice(0, 150) + '…' : o.sub)}</div></div>`).join('')
+    : '<p class="nota">Nada encontrado. Tente o nome da peça, o número da tarefa (ex.: 631001), um painel (ex.: 500G), um P/N ou um regulamento (ex.: 91.409).</p>'}`;
+};
+$('#busca').addEventListener('input', (e) => { if (e.target.value.trim()) { abaAtual = 'busca'; document.querySelectorAll('#abas button').forEach((b) => b.classList.remove('ativa')); desenhar.busca(); } else abrirAba('descrever'); });
 
 /* ---------- Descrever ---------- */
 let ultimoTexto = '';
@@ -298,7 +335,8 @@ desenhar.inspecoes = (id) => {
     <select id="selInsp">${MPI.INSPECOES.map((i) => `<option value="${i.id}" ${i === ins ? 'selected' : ''}>${esc(i.nome)}</option>`).join('')}</select>
     <p class="nota">${esc(ins.nota)} · DMC 429-A-${esc(ins.dmc)}</p>
     <div class="prog"><i id="barraProg"></i></div><p class="nota" id="txtProg"></p>
-    <div class="linha"><button class="bt pri" data-comps="${todos.join(',')}">Mostrar todas as áreas</button><button class="bt" id="btZerar">Zerar marcações</button></div>
+    <div class="linha"><button class="bt pri" data-comps="${todos.join(',')}">Mostrar todas as áreas</button><button class="bt" id="btMarcar">Marcar todas</button><button class="bt" id="btZerar">Zerar</button><button class="bt" data-dado="imprimir">Imprimir</button></div>
+    <div class="linha" id="filtroCx"><input type="text" id="filtroInsp" placeholder="Filtrar tarefas (texto, nº, painel, zona)" style="flex:1;min-width:150px"><label class="nota"><input type="checkbox" id="soPend"> só pendentes</label></div>
     ${ins.prep ? `<h3>Preparação – painéis a remover</h3><p class="nota">${esc(ins.prep)} (429-MM Cap. 53)</p>` : ''}
     ${ins.g.map((g) => `<h3>${esc(g.s)}</h3>${lista.filter((x) => x.g === g).map((x) => itemTarefa(x, { check: true })).join('')}`).join('')}
     <h3>Itens gerais (toda inspeção)</h3>${MPI.GERAL.map((t, i) => { const k = ins.id + ':G' + i; return `<div class="item${feitos[k] ? ' feito' : ''}"><input type="checkbox" data-check="${k}" ${feitos[k] ? 'checked' : ''}><div class="desc">${esc(t)}</div></div>`; }).join('')}
@@ -309,16 +347,37 @@ function progresso() {
   const cs = conteudo.querySelectorAll('[data-check]'); if (!cs.length || !$('#barraProg')) return;
   const n = [...cs].filter((c) => c.checked).length;
   $('#barraProg').style.width = (100 * n / cs.length) + '%'; $('#txtProg').textContent = `${n} de ${cs.length} itens marcados (salvo neste navegador)`;
+  selo('inspecoes', n && n < cs.length ? cs.length - n : n === cs.length ? '✓' : 0, n === cs.length);
 }
+function filtrarInspecao() {
+  const q = semAcento($('#filtroInsp')?.value || '').split(/\s+/).filter(Boolean), pend = $('#soPend')?.checked;
+  for (const it of conteudo.querySelectorAll('.item')) {
+    const txt = semAcento(it.textContent), feito = it.querySelector('[data-check]')?.checked;
+    it.classList.toggle('oculto', !q.every((w) => txt.includes(w)) || (pend && feito));
+  }
+  for (const h of conteudo.querySelectorAll('h3')) { // esconde títulos de grupos sem itens visíveis
+    let n = h.nextElementSibling, vis = false, tem = false;
+    while (n && n.tagName !== 'H3') { if (n.classList.contains('item')) { tem = true; if (!n.classList.contains('oculto')) vis = true; } n = n.nextElementSibling; }
+    h.classList.toggle('oculto', tem && !vis);
+  }
+}
+
+/* ---------- Controle: cálculo compartilhado (tela, selo do menu e exportação) ---------- */
+const lerCtrl = () => Object.assign({ mat: '', tsn: 0, media: 30, ult: {}, extra: [] }, guarda.ler('b429_ctrl', {}));
+function linhasControle(st) {
+  return [...CONTROLE, ...st.extra].sort((a, b) => a.h - b.h).map((l) => {
+    const ult = +st.ult[l.id] || 0, prox = ult + l.h, resta = prox - st.tsn, tol = l.origem === 'mpi' ? Math.min(l.h * 0.1, 100) : 0;
+    const sit = st.ult[l.id] == null ? ['', 'INFORMAR ÚLTIMA EXECUÇÃO'] : resta < -tol ? ['er', 'VENCIDA'] : resta < 0 ? ['al', 'NA TOLERÂNCIA'] : resta <= l.h * 0.1 ? ['al', 'PRÓXIMA'] : ['ok', 'EM DIA'];
+    return { l, ult, prox, resta, sit, uso: Math.max(0, Math.min(1, (st.tsn - ult) / l.h)) };
+  });
+}
+function seloControle() { selo('controle', linhasControle(lerCtrl()).filter((x) => x.sit[0] === 'er' || x.sit[0] === 'al').length); }
 
 /* ---------- Controle por horas ---------- */
 desenhar.controle = () => {
-  const st = guarda.ler('b429_ctrl', { mat: '', tsn: 0, media: 30, ult: {}, extra: [] });
-  const linhas = [...CONTROLE, ...st.extra].sort((a, b) => a.h - b.h), hoje = new Date();
-  const corpo = linhas.map((l) => {
-    const ult = +st.ult[l.id] || 0, prox = ult + l.h, resta = prox - st.tsn, tol = l.origem === 'mpi' ? Math.min(l.h * 0.1, 100) : 0;
-    const uso = Math.max(0, Math.min(1, (st.tsn - ult) / l.h));
-    const sit = st.ult[l.id] == null ? ['', 'INFORMAR ÚLTIMA EXECUÇÃO'] : resta < -tol ? ['er', 'VENCIDA'] : resta < 0 ? ['al', 'NA TOLERÂNCIA'] : resta <= l.h * 0.1 ? ['al', 'PRÓXIMA'] : ['ok', 'EM DIA'];
+  const st = lerCtrl(), hoje = new Date();
+  seloControle();
+  const corpo = linhasControle(st).map(({ l, ult, prox, resta, sit, uso }) => {
     const prev = st.media > 0 && resta > 0 ? new Date(hoje.getTime() + (resta / st.media) * 30 * 864e5).toLocaleDateString('pt-BR') : '—';
     return `<div class="cartao"><div class="tit"><span>${esc(l.nome)}</span><span class="tag ${sit[0]}">${sit[1]}</span></div>
       <div class="sub">${l.origem === 'mpi' ? 'BHT-429-MPI' : 'Definida pelo operador' + (l.obs ? ' · ' + esc(l.obs) : '')} · vence com <b>${prox.toFixed(1)} h</b> · restam <b>${resta.toFixed(1)} h</b> · previsão ${prev}</div>
@@ -341,7 +400,7 @@ desenhar.controle = () => {
       return `<div class="cartao clic" data-comps="${r.id}"><div class="tit"><span>${esc(r.n)}</span><span class="tag ${u >= 1 ? 'er' : u > 0.9 ? 'al' : 'ok'}">${v.toLocaleString('pt-BR')} / ${r.lim.toLocaleString('pt-BR')} RIN</span></div>
         <div class="sub">+${r.f[0]} por pouso normal · +${r.f[1]} por pouso corrido · +${r.f[2]} por autorrotação</div><div class="prog ${u >= 1 ? 'er' : u > 0.9 ? 'al' : ''}"><i style="width:${u * 100}%"></i></div></div>`; }).join('')}`;
 };
-function salvarControle(mut) { const st = guarda.ler('b429_ctrl', { mat: '', tsn: 0, media: 30, ult: {}, extra: [] }); mut(st); guarda.salvar('b429_ctrl', st); desenhar.controle(); }
+function salvarControle(mut) { const st = lerCtrl(); mut(st); guarda.salvar('b429_ctrl', st); desenhar.controle(); }
 
 /* ---------- Limites de aeronavegabilidade ---------- */
 desenhar.limites = () => {
@@ -431,6 +490,7 @@ function avaliar() {
   const n = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))).length, bt = $('#btSaude');
   bt.textContent = n ? `Saúde · ${n} alerta${n > 1 ? 's' : ''}` : 'Saúde';
   bt.classList.toggle('aviso', n > 0 && !mapaSaude);
+  selo('sensores', n);
 }
 function curva(h, s) {
   if (h.length < 2) return '';
@@ -481,10 +541,93 @@ desenhar.sensores = () => {
   atualizarSensores();
 };
 
+/* ---------- Dados: exportar, importar, apagar ---------- */
+function baixar(nome, texto, tipo) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([texto], { type: tipo })); a.download = nome;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+// CSV com ; e BOM: abre direto no Excel em português
+const paraCsv = (linhas) => '﻿' + linhas.map((l) => l.map((c) => { c = String(c ?? ''); return /[;"\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(';')).join('\r\n');
+const dataArq = () => new Date().toISOString().slice(0, 10);
+const num = (v) => (Number.isFinite(+v) ? +v : 0);
+function exportar(tipo) {
+  const st = lerCtrl(), mat = st.mat ? st.mat.replace(/[^\w-]/g, '') + '_' : '';
+  if (tipo === 'json') return baixar(`bell429_${mat}backup_${dataArq()}.json`, JSON.stringify({ app: 'bell429-manual', versao: 1, exportado: new Date().toISOString(), dados: { check: feitos, ctrl: st, tarefas: guarda.ler('b429_tarefas', []), iot } }, null, 2), 'application/json');
+  if (tipo === 'ctrl') return baixar(`bell429_${mat}controle_${dataArq()}.csv`, paraCsv([
+    ['Matrícula', st.mat, 'Horas totais', st.tsn, 'Média h/mês', st.media], [],
+    ['Intervalo', 'Horas', 'Origem', 'Última execução (h)', 'Vence com (h)', 'Restam (h)', 'Situação'],
+    ...linhasControle(st).map(({ l, ult, prox, resta, sit }) => [l.nome, l.h, l.origem === 'mpi' ? 'BHT-429-MPI' : 'Operador', st.ult[l.id] == null ? '' : ult, prox.toFixed(1), resta.toFixed(1), sit[1]])]), 'text/csv');
+  if (tipo === 'check') return baixar(`bell429_${mat}checklist_${dataArq()}.csv`, paraCsv([
+    ['Inspeção', 'Sistema', 'Tarefa', 'Descrição', 'Acesso', 'Zona', 'Componentes no modelo', 'Executada'],
+    ...TAREFAS.map((x) => [x.ins.nome, x.g.s, x.t[0], x.t[1], x.t[2], x.t[3], x.comps.map((c) => COMPS[c].n).join(' | '), feitos[x.ins.id + ':' + x.t[0]] ? 'SIM' : ''])]), 'text/csv');
+  if (tipo === 'sens') return baixar(`bell429_${mat}sensores_${dataArq()}.csv`, paraCsv([
+    ['Sensor', 'Id', 'Sistema', 'Componentes', 'Valor', 'Unidade', 'Alerta', 'Crítico', 'Estado', 'Origem'],
+    ...SENSORES.map((s) => [s.n, s.id, s.grupo, s.comp.map((c) => COMPS[c].n).join(' | '), s.tipo === 'bool' ? leit[s.id].v : leit[s.id].v.toFixed(2), s.un, s.al ?? '', s.cr ?? '', ROT[estado(s)][1], iot.modo === 'sim' ? 'simulação' : iot.url])]), 'text/csv');
+}
+function importar(texto) {
+  let j; try { j = JSON.parse(texto); } catch { return 'Arquivo inválido: não é JSON.'; }
+  const d = j && j.app === 'bell429-manual' && j.dados;
+  if (!d || typeof d !== 'object') return 'Arquivo inválido: não é um backup deste manual.';
+  if (!confirm('Importar substitui as marcações, o controle e as tarefas salvas deste navegador. Continuar?')) return 'Importação cancelada.';
+  for (const k in feitos) delete feitos[k];
+  if (d.check && typeof d.check === 'object') for (const k of Object.keys(d.check).slice(0, 5000)) if (k.length <= 80 && d.check[k]) feitos[k] = 1;
+  guarda.salvar('b429_check', feitos);
+  const c = d.ctrl && typeof d.ctrl === 'object' ? d.ctrl : {}, ult = {};
+  for (const k of Object.keys(c.ult || {}).slice(0, 300)) if (k.length <= 40) ult[k] = num(c.ult[k]);
+  guarda.salvar('b429_ctrl', {
+    mat: String(c.mat || '').slice(0, 20), tsn: num(c.tsn), media: num(c.media), ult,
+    extra: (Array.isArray(c.extra) ? c.extra : []).slice(0, 60).filter((x) => x && num(x.h) > 0).map((x) => ({ id: String(x.id || 'x' + Math.random()).slice(0, 40), nome: String(x.nome || '').slice(0, 80), h: num(x.h), origem: 'op', extra: 1 })),
+    rin: Array.isArray(c.rin) ? c.rin.slice(0, 3).map(num) : undefined
+  });
+  guarda.salvar('b429_tarefas', (Array.isArray(d.tarefas) ? d.tarefas : []).filter((s) => typeof s === 'string').map((s) => s.slice(0, 300)).slice(0, 30));
+  seloControle();
+  return `Backup de ${String(j.exportado || '').slice(0, 10) || 'data desconhecida'} importado.`;
+}
+let msgDados = '';
+desenhar.dados = () => {
+  const st = lerCtrl(), nFeitos = Object.keys(feitos).length, salvas = guarda.ler('b429_tarefas', []).length, venc = linhasControle(st).filter((x) => x.sit[0] === 'er').length;
+  conteudo.innerHTML = `<h2>Dados registrados neste navegador</h2>
+    <div class="resumo"><div><b>${nFeitos}</b><span>itens de checklist marcados</span></div><div><b>${salvas}</b><span>tarefas descritas salvas</span></div>
+      <div><b>${st.mat ? esc(st.mat) : '—'} · ${st.tsn} h</b><span>aeronave no controle</span></div><div><b>${venc}</b><span>inspeções vencidas</span></div></div>
+    ${msgDados ? `<p class="nota" style="color:var(--acento2)">${esc(msgDados)}</p>` : ''}
+    <h3>Cópia de segurança</h3>
+    <p class="nota">Os dados ficam só neste navegador e neste endereço. Use o backup para levar para outro aparelho ou do localhost para o site.</p>
+    <div class="linha"><button class="bt pri" data-dado="json">Exportar backup (.json)</button><button class="bt" data-dado="abrir-import">Importar backup…</button><input type="file" id="arqImport" accept=".json,application/json" hidden></div>
+    <h3>Planilhas (CSV para Excel)</h3>
+    <div class="linha"><button class="bt" data-dado="ctrl">Controle por horas</button><button class="bt" data-dado="check">Checklist de todas as inspeções</button><button class="bt" data-dado="sens">Leituras dos sensores</button></div>
+    <h3>Imprimir</h3>
+    <div class="linha"><button class="bt" data-dado="imprimir">Imprimir a inspeção selecionada</button></div>
+    <h3>Apagar</h3>
+    <div class="linha"><button class="bt perigo" data-dado="apagar-check">Marcações de checklist</button><button class="bt perigo" data-dado="apagar-ctrl">Controle por horas</button><button class="bt perigo" data-dado="apagar-tarefas">Tarefas salvas</button><button class="bt perigo" data-dado="apagar-tudo">Tudo</button></div>
+    <p class="nota">Apagar não tem como desfazer – exporte o backup antes.</p>`;
+  msgDados = '';
+};
+function acaoDados(acao) {
+  if (['json', 'ctrl', 'check', 'sens'].includes(acao)) { exportar(acao); return; }
+  if (acao === 'abrir-import') { $('#arqImport').click(); return; }
+  if (acao === 'imprimir') { if (abaAtual !== 'inspecoes') abrirAba('inspecoes'); setTimeout(() => window.print(), 100); return; }
+  const alvo = { 'apagar-check': 'as marcações de checklist', 'apagar-ctrl': 'o controle por horas', 'apagar-tarefas': 'as tarefas salvas', 'apagar-tudo': 'TODOS os dados' }[acao];
+  if (!alvo || !confirm(`Apagar ${alvo} deste navegador? Não é possível desfazer.`)) return;
+  if (acao === 'apagar-check' || acao === 'apagar-tudo') { for (const k in feitos) delete feitos[k]; guarda.salvar('b429_check', feitos); selo('inspecoes', 0); }
+  if (acao === 'apagar-ctrl' || acao === 'apagar-tudo') guarda.salvar('b429_ctrl', {});
+  if (acao === 'apagar-tarefas' || acao === 'apagar-tudo') guarda.salvar('b429_tarefas', []);
+  seloControle(); msgDados = `Apagado: ${alvo}.`; desenhar.dados();
+}
+
 /* ---------- Eventos de interface do painel ---------- */
 conteudo.addEventListener('click', (e) => {
   const t = e.target;
   if (t.matches('input, select, textarea')) return;
+  if (t.dataset.dado) { acaoDados(t.dataset.dado); return; }
+  if (t.dataset.res) {
+    const o = resultados[+t.dataset.res]; if (!o) return;
+    if (o.ir.ficha) { abrirAba('sistemas'); desenhar.sistemas(o.ir.ficha); }
+    else if (o.ir.insp) { abrirAba('inspecoes'); desenhar.inspecoes(o.ir.insp); $('#filtroInsp').value = o.tit.split(' — ')[0]; filtrarInspecao(); }
+    else if (o.ir.evento) { eventoAtual = o.ir.evento; abrirAba('eventos'); }
+    else abrirAba(o.ir.aba);
+    selecionar(o.comps); return;
+  }
+  if (t.id === 'btMarcar') { for (const c of conteudo.querySelectorAll('.item:not(.oculto) [data-check]')) { c.checked = true; feitos[c.dataset.check] = 1; c.closest('.item').classList.add('feito'); } guarda.salvar('b429_check', feitos); progresso(); filtrarInspecao(); return; }
   if (t.id === 'btMapa') { ligarMapaSaude(!mapaSaude); desenhar.sensores(); return; }
   if (t.dataset.falha) { falha.has(t.dataset.falha) ? falha.delete(t.dataset.falha) : falha.add(t.dataset.falha); t.textContent = falha.has(t.dataset.falha) ? 'Normalizar' : 'Simular falha'; return; }
   if (t.dataset.ex) { ultimoTexto = t.dataset.ex; $('#txt').value = ultimoTexto; mostrarAnalise(); return; }
@@ -505,7 +648,9 @@ conteudo.addEventListener('click', (e) => {
 });
 conteudo.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.dataset.check) { if (t.checked) feitos[t.dataset.check] = 1; else delete feitos[t.dataset.check]; guarda.salvar('b429_check', feitos); t.closest('.item').classList.toggle('feito', t.checked); progresso(); }
+  if (t.dataset.check) { if (t.checked) feitos[t.dataset.check] = 1; else delete feitos[t.dataset.check]; guarda.salvar('b429_check', feitos); t.closest('.item').classList.toggle('feito', t.checked); progresso(); if ($('#soPend')?.checked) filtrarInspecao(); }
+  else if (t.id === 'soPend') filtrarInspecao();
+  else if (t.id === 'arqImport') { const f = t.files[0]; if (f) f.text().then((txt) => { msgDados = importar(txt); desenhar.dados(); }); }
   else if (t.id === 'selInsp') { selecionar([]); desenhar.inspecoes(t.value); }
   else if (t.id === 'iotModo') { iot.modo = t.value; guarda.salvar('b429_iot', iot); falha.clear(); zerarLeituras(); desenhar.sensores(); }
   else if (t.id === 'iotUrl') { iot.url = t.value.trim() || 'api/telemetria.php'; guarda.salvar('b429_iot', iot); }
@@ -518,5 +663,8 @@ conteudo.addEventListener('change', (e) => {
 });
 conteudo.addEventListener('keydown', (e) => { if (e.target.id === 'txt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { ultimoTexto = e.target.value; mostrarAnalise(); } });
 
-abrirAba('descrever');
-window.b429 = { selecionar, analisar, abrirAba, TAREFAS }; // útil para testes no console
+conteudo.addEventListener('input', (e) => { if (e.target.id === 'filtroInsp') filtrarInspecao(); });
+
+seloControle();
+abrirAba(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'descrever');
+window.b429 = { selecionar, analisar, abrirAba, TAREFAS, exportar, importar }; // útil para testes no console
