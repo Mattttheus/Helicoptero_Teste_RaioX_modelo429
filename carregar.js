@@ -1,4 +1,6 @@
 // Manutenção Interativa – escolhe o modelo pela URL (?m=505) e carrega os arquivos de dados dele.
+// VERSAO: mude a cada publicação (python ferramentas/versionar.py . <nova-versão>) para o navegador não usar arquivos antigos do cache.
+export const VERSAO = '20261115f';
 export function modeloAtual() {
   const cat = window.CATALOGO || [];
   const id = new URLSearchParams(location.search).get('m');
@@ -9,7 +11,7 @@ export function modeloAtual() {
 export function carregarScripts(lista) {
   return lista.reduce((p, src) => p.then(() => new Promise((ok, erro) => {
     const s = document.createElement('script');
-    s.src = src; s.onload = ok; s.onerror = () => erro(new Error('Não foi possível carregar ' + src));
+    s.src = src + (src.includes('?') ? '&' : '?') + 'v=' + VERSAO; s.onload = ok; s.onerror = () => erro(new Error('Não foi possível carregar ' + src));
     document.head.append(s);
   })), Promise.resolve());
 }

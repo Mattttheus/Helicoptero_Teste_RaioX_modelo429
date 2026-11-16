@@ -214,3 +214,14 @@ table.matriz td { width: 21%; } table.matriz td.gr { width: 16%; font-weight: 60
 .motores-painel { margin-top: 4px; }
 .motores-painel td .chip { display: inline-block; margin: 1px 3px 1px 0; font-size: 10.5px; padding: 1px 7px; cursor: default; }
 @media (max-width: 1000px) { .motores-ini { grid-template-columns: 1fr; } .motores-ini .vitrine { position: relative; height: 60vh; order: -1; } }
+
+/* ---------- Simulação de voo (manual) ---------- */
+#hudVoo { position: absolute; left: 12px; bottom: 44px; z-index: 3; width: min(520px, calc(100% - 24px)); background: #0b0f15dd; border: 1px solid var(--acento); border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(4px); }
+.hud-fase { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; } .hud-fase b { color: var(--acento2); font-size: 15px; } .hud-fase span { color: var(--suave); font-size: 11px; }
+.hud-barra { display: flex; gap: 2px; margin: 6px 0; } .hud-barra i { height: 5px; border-radius: 3px; background: #263142; } .hud-barra i.feita { background: var(--ok); } .hud-barra i.atual { background: var(--acento); }
+.hud-val { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; } .hud-val div { background: var(--cartao); border-radius: 8px; padding: 4px 6px; text-align: center; }
+.hud-val b { display: block; font: 700 15px ui-monospace, Consolas, monospace; } .hud-val span { font-size: 10px; color: var(--suave); }
+.hud-val .al b { color: var(--alerta); } .hud-val .cr b { color: var(--erro); }
+.fases-voo { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 11px; color: var(--suave); margin: 8px 0; } .fases-voo span { background: var(--cartao); border: 1px solid var(--borda); border-radius: 999px; padding: 2px 8px; } .fases-voo i { font-style: normal; }
+@media (max-width: 700px) { .hud-val { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1350px) { #selbar { top: 58px; max-width: calc(100% - 24px); } }

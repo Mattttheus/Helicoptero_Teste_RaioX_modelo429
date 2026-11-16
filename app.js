@@ -2,8 +2,8 @@
 // O modelo vem da URL (manual.html?m=505); os dados ficam em modelos/<id>/ (window.HELI).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { construirHelicoptero } from './modelo.js';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js';
+import { construirHelicoptero } from './modelo.js?v=20261115f';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115f';
 
 const CFG = modeloAtual();
 try { await carregarScripts(CFG.arquivos); } catch (e) { mostrarErro(e.message); throw e; }
@@ -174,10 +174,13 @@ $('#btGeral').onclick = () => vistaGeral();
 
 /* ---------- Laço de desenho ---------- */
 function ajustar() { const w = vista.clientWidth, h = vista.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
-new ResizeObserver(ajustar).observe(vista); ajustar(); vistaGeral(false);
+new ResizeObserver(ajustar).observe(vista); ajustar(); vistaGeral(false); controles.update();
 const relogio = new THREE.Clock();
-renderer.setAnimationLoop(() => {
+let erroLaco = false;
+renderer.setAnimationLoop(() => { try { quadro(); } catch (e) { if (!erroLaco) { erroLaco = true; mostrarErro('Erro no desenho 3D: ' + e.message); } } });
+function quadro() {
   const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime;
+  animarVoo(dt);
   if (voo) {
     const k = Math.min((performance.now() - voo.t0) / voo.dur, 1), s = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     camera.position.lerpVectors(voo.p0, voo.p1, s); controles.target.lerpVectors(voo.a0, voo.a1, s);
@@ -187,7 +190,7 @@ renderer.setAnimationLoop(() => {
   matDestaque.emissiveIntensity = 0.55 + 0.35 * Math.sin(t * 4);
   matSaude.cr.emissiveIntensity = 0.6 + 0.5 * Math.sin(t * 6);
   controles.update(); renderer.render(cena, camera); posicionarRotulos();
-});
+}
 
 /* =====================================================================
    Índice de tarefas do MPI
@@ -293,6 +296,7 @@ window.addEventListener('hashchange', () => { const n = location.hash.slice(1); 
 window.addEventListener('keydown', (e) => {
   const digitando = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
   if (e.altKey && /^[1-9]$/.test(e.key) && ABAS[+e.key - 1]) { e.preventDefault(); abrirAba(ABAS[+e.key - 1]); }
+  else if (e.altKey && e.key === '0') { e.preventDefault(); abrirAba('voo'); }
   else if (e.key === '/' && !digitando) { e.preventDefault(); $('#busca').focus(); }
   else if (e.key === 'Escape') { if (e.target.id === 'busca') { e.target.blur(); abrirAba('descrever'); } else if (!digitando) { selecionar([]); marcarAtivo(null); } }
 });
@@ -478,7 +482,20 @@ const pesoSensor = (id) => { let h = 7; for (const ch of id) h = (h * 31 + ch.ch
 function faseVoo(t) { const tt = t % CICLO_VOO; let f = FASES_VOO[0]; for (const x of FASES_VOO) if (tt >= x[0]) f = x; return f; }
 const tempoCen = () => (Date.now() - cenT0) / 1000;
 const cargaEstresse = () => Math.min(1.75, tempoCen() / 50);
+const cenRapido = new Set(); // sensores com falha do teste de voo (sobem rápido)
+function falhaDoVoo(s) {
+  if (!vooSim) return null;
+  const tt = tempoCen() % CICLO_VOO, f = vooFalha;
+  if (f === 'pouso' && s.un === 'g' && tt > 52.5 && tt < 56) return 2.9;
+  if (f === 'otq' && s.id === 'torque_mastro' && tt > 16.5 && tt < 23.5) return 117;
+  if (f === 'chip' && s.id === 'chip_trans' && tt > 30) return 1;
+  if (f === 'vib' && s.id === 'vib_rp' && tt > 26 && tt < 44) return s.cr * 1.2;
+  if (f === 'motor' && sTempVoo && s.id === sTempVoo.id && tt > 20 && tt < 40) return sTempVoo.cr + 30;
+  return null;
+}
 function alvoCenario(s) {
+  const fv = falhaDoVoo(s); if (fv !== null) { cenRapido.add(s.id); return fv; }
+  cenRapido.delete(s.id);
   if (cenario === 'voo') {
     const [, nome, L] = faseVoo(tempoCen());
     if (s.tipo === 'bool') return 0;
@@ -516,7 +533,7 @@ function passoSimulado() {
     const ac = alvoCenario(s);
     if (s.tipo === 'bool') { registrar(s, falha.has(s.id) ? 1 : (ac ?? 0)); continue; }
     const alvo = falha.has(s.id) ? s.cr + (s.cr - s.al) * 0.35 * (s.tipo === 'max' ? 1 : -1) : (ac ?? s.base);
-    registrar(s, l.v + (alvo - l.v) * 0.12 + (Math.random() - 0.5) * s.ruido);
+    registrar(s, l.v + (alvo - l.v) * (cenRapido.has(s.id) ? 0.65 : falha.has(s.id) ? 0.35 : 0.12) + (Math.random() - 0.5) * s.ruido);
   }
 }
 async function passoRemoto() {
@@ -581,7 +598,7 @@ function atualizarSensores() {
     }).join('') : '<p class="nota">Nenhum alerta ativo: todos os sensores dentro da faixa.</p>';
   }
 }
-setInterval(async () => { if (iot.modo === 'sim') { passoSimulado(); conexao = 'simulação (dados gerados no navegador)'; } else await passoRemoto(); avaliar(); atualizarSensores(); }, 1000);
+setInterval(async () => { if (vooSim && (performance.now() - vooSim.t0) / 1000 >= CICLO_VOO) pararVoo(true); if (iot.modo === 'sim') { passoSimulado(); conexao = 'simulação (dados gerados no navegador)'; } else await passoRemoto(); avaliar(); atualizarSensores(); }, 1000);
 
 desenhar.sensores = () => {
   conteudo.innerHTML = `<h2>Sensores IoT – monitoramento de condição</h2>
@@ -695,6 +712,8 @@ conteudo.addEventListener('click', (e) => {
   }
   if (t.id === 'btMarcar') { for (const c of conteudo.querySelectorAll('.item:not(.oculto) [data-check]')) { c.checked = true; feitos[c.dataset.check] = 1; c.closest('.item').classList.add('feito'); } guarda.salvar(K + '_check', feitos); progresso(); filtrarInspecao(); return; }
   if (t.id === 'btMapa') { ligarMapaSaude(!mapaSaude); desenhar.sensores(); return; }
+  if (t.id === 'btIniciarVoo') { if (vooSim) pararVoo(false); else iniciarVoo(); return; }
+  if (t.dataset.evento) { eventoAtual = t.dataset.evento; abrirAba('eventos'); return; }
   if (t.id === 'btCenario') { reiniciarCenario(cenario); falha.clear(); desenhar.sensores(); return; }
   if (t.dataset.falha) { falha.has(t.dataset.falha) ? falha.delete(t.dataset.falha) : falha.add(t.dataset.falha); t.textContent = falha.has(t.dataset.falha) ? 'Normalizar' : 'Simular falha'; return; }
   if (t.dataset.ex) { ultimoTexto = t.dataset.ex; $('#txt').value = ultimoTexto; mostrarAnalise(); return; }
@@ -720,7 +739,8 @@ conteudo.addEventListener('change', (e) => {
   else if (t.id === 'arqImport') { const f = t.files[0]; if (f) f.text().then((txt) => { msgDados = importar(txt); desenhar.dados(); }); }
   else if (t.id === 'selInsp') { selecionar([]); desenhar.inspecoes(t.value); }
   else if (t.id === 'iotModo') { iot.modo = t.value; guarda.salvar(K + '_iot', iot); falha.clear(); reiniciarCenario('normal'); zerarLeituras(); desenhar.sensores(); }
-  else if (t.id === 'iotCenario') { reiniciarCenario(t.value); falha.clear(); if (t.value === 'estresse' && !mapaSaude) ligarMapaSaude(true); desenhar.sensores(); }
+  else if (t.id === 'selVooFalha') vooFalha = t.value;
+  else if (t.id === 'iotCenario') { if (vooSim) pararVoo(false); reiniciarCenario(t.value); falha.clear(); if (t.value === 'estresse' && !mapaSaude) ligarMapaSaude(true); desenhar.sensores(); }
   else if (t.id === 'iotUrl') { iot.url = t.value.trim() || 'api/telemetria.php'; guarda.salvar(K + '_iot', iot); }
   else if (t.id === 'selEvento') { eventoAtual = t.value; selecionar([]); desenhar.eventos(); }
   else if (t.id === 'cMat') salvarControle((st) => { st.mat = t.value; });
@@ -732,6 +752,106 @@ conteudo.addEventListener('change', (e) => {
 conteudo.addEventListener('keydown', (e) => { if (e.target.id === 'txt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { ultimoTexto = e.target.value; mostrarAnalise(); } });
 
 conteudo.addEventListener('input', (e) => { if (e.target.id === 'filtroInsp') filtrarInspecao(); });
+
+/* =====================================================================
+   Teste de simulação de voo (o helicóptero voa no 3D e os sensores acompanham)
+   ===================================================================== */
+const FALHAS_VOO = {
+  normal: 'Voo normal',
+  pouso: 'Pouso duro (aceleração vertical acima do limite)',
+  otq: 'Sobretorque na decolagem',
+  chip: 'Luz de CHIP da transmissão no cruzeiro',
+  vib: 'Vibração alta do rotor principal no cruzeiro',
+  motor: 'Superaquecimento do motor na subida'
+};
+const sTempVoo = SENSORES.find((s) => /^(mgt_1|temp_motor)$/.test(s.id));
+const sTqVoo = SENSORES.find((s) => s.id === 'torque_mastro');
+let vooSim = null, vooFalha = 'normal', vooResumo = null, hudT = 0;
+// perfil: [t (s), altitude (ft), velocidade (kt), arfagem (graus, + = nariz para baixo), Nr (%)]
+const PERFIL_VOO = [[0, 0, 0, 0, 0], [8, 0, 0, 0, 100], [11, 8, 0, 0, 100], [16, 8, 0, 1, 100], [20, 250, 50, 7, 100], [24, 500, 80, 6, 100], [30, 1000, 120, 4, 100],
+  [44, 1000, 120, 4, 100], [50, 200, 60, 2, 100], [52, 30, 25, -3, 100], [55, 6, 0, -1, 100], [57.5, 0, 0, 0, 100], [58, 0, 0, 0, 100], [62, 0, 0, 0, 0]];
+function perfilEm(t) {
+  const P = PERFIL_VOO;
+  for (let i = 1; i < P.length; i++) if (t <= P[i][0]) { const a = P[i - 1], b = P[i], k = Math.max(0, (t - a[0]) / (b[0] - a[0])), e = k * k * (3 - 2 * k); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * e); }
+  return P[P.length - 1].slice(1);
+}
+function iniciarVoo() {
+  if (iot.modo !== 'sim') { iot.modo = 'sim'; guarda.salvar(K + '_iot', iot); zerarLeituras(); }
+  falha.clear(); reiniciarCenario('voo'); vooResumo = null; hudT = 0;
+  vooSim = { t0: performance.now(), dist: 0, alt: 0 };
+  selecionar([], { foco: false }); marcarAtivo(null); if (!mapaSaude) ligarMapaSaude(true);
+  $('#hudVoo').hidden = false; $('#btVoo').classList.add('on'); $('#btVoo').textContent = 'Parar voo';
+  abrirAba('voo');
+}
+function pararVoo(concluido) {
+  if (!vooSim) return;
+  vooResumo = { concluido, dur: (performance.now() - vooSim.t0) / 1000, log: cenLog.slice(), falha: vooFalha };
+  const dy = -vooSim.alt; camera.position.y += dy; controles.target.y += dy;
+  vooSim = null; reiniciarCenario('normal');
+  heli.raiz.position.set(0, 0, 0); heli.raiz.rotation.set(0, 0, 0); grade.position.x = -2;
+  $('#hudVoo').hidden = true; $('#btVoo').classList.remove('on'); $('#btVoo').textContent = 'Simular voo';
+  abrirAba('voo');
+}
+$('#btVoo').onclick = () => (vooSim ? pararVoo(false) : iniciarVoo());
+function animarVoo(dt) {
+  if (!vooSim) return;
+  const t = (performance.now() - vooSim.t0) / 1000;
+  if (t >= CICLO_VOO) { pararVoo(true); return; }
+  let [alt, kt, arf, nr] = perfilEm(t), tremor = 0;
+  if (vooFalha === 'pouso' && t > 52 && t < 55) { // desce rápido demais e quica no toque
+    const k = (t - 52) / 1.2;
+    alt = k < 1 ? 30 * (1 - k * k) : Math.abs(Math.sin((t - 53.2) * 9)) * 2 * Math.max(0, 1 - (t - 53.2) / 1.4);
+    if (t > 53.1 && t < 53.7) tremor = (Math.random() - 0.5) * 0.08;
+  }
+  const y = Math.min(alt / 110, 9.5), dy = y - vooSim.alt; vooSim.alt = y;
+  heli.raiz.position.set(tremor, y, 0); heli.raiz.rotation.z = -arf * Math.PI / 180;
+  camera.position.y += dy; controles.target.y += dy;
+  vooSim.dist += kt * 0.514 * 0.12 * dt; grade.position.x = -2 - (vooSim.dist % 1);
+  for (const r of heli.rotores) r.obj.rotation[r.eixo] += dt * r.vel * 1.8 * nr / 100;
+  if (t - hudT > 0.2) { hudT = t; atualizarHud(t, alt, kt, nr); }
+}
+const valorLeit = (s) => (s ? leit[s.id].v : NaN);
+function atualizarHud(t, alt, kt, nr) {
+  const fase = faseVoo(t)[1], alertas = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))), cr = alertas.filter((s) => estado(s) === 'cr').length;
+  const num = (v, d = 0) => (Number.isFinite(v) ? v.toLocaleString('pt-BR', { maximumFractionDigits: d }) : '—');
+  $('#hudVoo').innerHTML = `<div class="hud-fase"><b>${esc(fase)}</b><span>${num(t)} s de ${CICLO_VOO} s · ${esc(FALHAS_VOO[vooFalha])}</span></div>
+    <div class="hud-barra">${FASES_VOO.map((f, i) => { const fim = (FASES_VOO[i + 1] || [CICLO_VOO])[0]; return `<i class="${t >= fim ? 'feita' : t >= f[0] ? 'atual' : ''}" style="flex:${fim - f[0]}" title="${esc(f[1])}"></i>`; }).join('')}</div>
+    <div class="hud-val"><div><b>${num(alt)}</b><span>altitude ft</span></div><div><b>${num(kt)}</b><span>velocidade kt</span></div><div><b>${num(nr)}</b><span>Nr %</span></div>
+      <div><b>${num(valorLeit(sTqVoo))}</b><span>torque %</span></div><div><b>${num(valorLeit(sTempVoo))}</b><span>${sTempVoo ? (sTempVoo.id === 'mgt_1' ? 'MGT nº 1 °C' : 'motor °C') : 'motor'}</span></div>
+      <div class="${cr ? 'cr' : alertas.length ? 'al' : ''}"><b>${alertas.length}</b><span>alertas${cr ? ` · ${cr} crít.` : ''}</span></div></div>`;
+  const vv = $('#vooAoVivo');
+  if (vv) vv.innerHTML = cenLog.length ? `<h3>Ocorrências até agora (${cenLog.length})</h3>${cenLog.slice(-8).reverse().map((x) => `<div class="item" data-comps="${x.s.comp.join(',')}"><span class="tag ${ROT[x.e][0]}">${ROT[x.e][1]}</span><div class="desc">${esc(x.s.n)}<div class="meta">${x.t.toFixed(0)} s · ${esc(x.fase)}</div></div></div>`).join('')}` : '<p class="nota">Voo em andamento: nenhum sensor fora da faixa até agora.</p>';
+}
+function resumoVoo() {
+  const r = vooResumo, piores = {};
+  for (const x of r.log) if (!piores[x.s.id] || x.e === 'cr') piores[x.s.id] = x;
+  const lista = Object.values(piores), crit = lista.filter((x) => x.e === 'cr');
+  const evs = new Set();
+  for (const x of lista) {
+    if (x.s.un === 'g' && x.e === 'cr') evs.add('pouso');
+    if (x.s.id === 'torque_mastro' && x.e === 'cr') evs.add('otq');
+    if (sTempVoo && x.s.id === sTempVoo.id && x.e === 'cr') evs.add('otemp');
+  }
+  const eventos = [...evs].map((id) => MPI.EVENTOS.find((e) => e.id === id)).filter(Boolean);
+  const comps = new Set(lista.flatMap((x) => x.s.comp));
+  const tarefas = TAREFAS.filter((x) => x.comps.some((c) => comps.has(c))).slice(0, 6);
+  return `<h3>Resultado do voo ${r.concluido ? 'concluído' : 'interrompido'} (${r.dur.toFixed(0)} s · ${esc(FALHAS_VOO[r.falha])})</h3>
+    <div class="cartao ${crit.length ? 'critico' : lista.length ? 'alerta' : ''}"><div class="tit"><span>${lista.length ? `${lista.length} sensor${lista.length > 1 ? 'es' : ''} fora da faixa (${crit.length} crítico${crit.length === 1 ? '' : 's'})` : 'Voo sem ocorrências: todos os sensores dentro da faixa'}</span></div>
+      <div class="sub">${lista.length ? 'Clique em cada item para ver o componente no 3D.' : 'Nenhuma inspeção condicional indicada por este voo.'}</div></div>
+    ${lista.map((x) => `<div class="cartao clic ${x.e === 'cr' ? 'critico' : 'alerta'}" data-comps="${x.s.comp.join(',')}"><div class="tit"><span>${esc(x.s.n)}</span><span class="tag ${ROT[x.e][0]}">${ROT[x.e][1]}</span></div>
+      <div class="sub">${x.t.toFixed(0)} s · ${esc(x.fase)} · <b>Ação:</b> ${esc(x.s.dica)}</div></div>`).join('')}
+    ${eventos.length ? `<h3>Inspeções condicionais indicadas</h3><div class="linha">${eventos.map((e) => `<button class="bt pri" data-evento="${e.id}">${esc(e.n)} ›</button>`).join('')}</div>` : ''}
+    ${tarefas.length ? `<h3>Tarefas do ${esc(INFO.manual)} relacionadas</h3>${tarefas.map((x) => itemTarefa(x, { origem: true })).join('')}` : ''}`;
+}
+desenhar.voo = () => {
+  conteudo.innerHTML = `<h2>Teste de simulação de voo</h2>
+    <p class="nota">O ${esc(CFG.nome)} faz um voo completo no 3D em ${CICLO_VOO} s: partida, pairado, decolagem, subida, cruzeiro, descida, pouso e corte. Os sensores acompanham cada fase, o mapa de saúde pinta no modelo os componentes que saem da faixa e, no fim, aparecem as inspeções indicadas. Escolha uma falha para treinar o diagnóstico.</p>
+    <div class="linha"><select id="selVooFalha" style="flex:1;min-width:180px">${Object.entries(FALHAS_VOO).map(([k, n]) => `<option value="${k}" ${k === vooFalha ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <button class="bt pri" id="btIniciarVoo">${vooSim ? 'Parar o voo' : 'Iniciar o voo'}</button></div>
+    <div class="fases-voo">${FASES_VOO.map((f) => `<span>${esc(f[1])}</span>`).join('<i>›</i>')}</div>
+    <div id="vooAoVivo">${vooSim ? '' : ''}</div>
+    ${vooResumo ? resumoVoo() : '<p class="nota">Dica: aproxime a câmera antes de iniciar; ela acompanha a subida do helicóptero. O teste do motor (partida, voo e estresse com limites do fabricante) fica na página <a href="motor.html?m=' + CFG.id + '">Motor 3D</a>.</p>'}`;
+};
 
 seloControle();
 abrirAba(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'descrever');

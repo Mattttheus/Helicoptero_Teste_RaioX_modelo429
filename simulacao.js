@@ -59,10 +59,10 @@ export class MotorSim {
     this.modo = 'estresse'; this.estresse = { tipo, k: intensidade, t0: this.t }; this.alvo = { ng: 0, pw: 0.8, np: this.P.npVoo };
     this.evento(`Teste de estresse: ${TIPOS_ESTRESSE[tipo]} – intensidade ${Math.round(intensidade * 100)}%`, 'al');
   }
-  abortar(motivo = 'Partida abortada pelo operador') {
+  abortar(motivo = 'Partida abortada pelo operador', nivel = 'al') {
     if (this.modo === 'parado') return;
     this.comb = false; this.arranque = false; this.s.ign = 0; this.modo = 'corte'; this.fase = 'Corte: combustível OFF, rotores desacelerando';
-    this.evento(motivo + ' – combustível e ignição desligados.', 'al');
+    this.evento(motivo + ' – combustível e ignição desligados.', nivel);
   }
 
   /* ---------- passo de simulação ---------- */
@@ -118,8 +118,9 @@ export class MotorSim {
   }
   tempPartidaAlvo() { // pico típico perto de 25–35% Ng, maior em partida quente / pendurada
     const P = this.P, s = this.s;
-    const pico = this.falha === 'quente' ? P.tempPartidaMax * 1.08 : this.falha === 'pendurada' ? P.tempPartida * 0.98 : P.picoPartida;
-    return lerp(P.tempIdle, pico, sino(s.ng, this.falha === 'pendurada' ? 40 : 30, this.falha === 'pendurada' ? 30 : 16));
+    const pico = this.falha === 'quente' ? P.tempPartidaMax * (P.fadec ? 1.08 : 1.14) : this.falha === 'pendurada' ? P.tempPartida * 0.98 : P.picoPartida;
+    const larg = this.falha === 'pendurada' ? 30 : this.falha === 'quente' ? (P.fadec ? 18 : 26) : 16;
+    return lerp(P.tempIdle, pico, sino(s.ng, this.falha === 'pendurada' ? 40 : 30, larg));
   }
 
   passoPartida(dt) {
@@ -165,7 +166,7 @@ export class MotorSim {
     if (!seg) return;
     if (this.tSeg === dt) this.evento('Fase: ' + seg[0]);
     this.fase = 'Voo · ' + seg[0];
-    if (seg[2] < 0) { this.abortar('Corte do motor após o resfriamento'); this.modo = 'corte'; return; }
+    if (seg[2] < 0) { this.abortar('Corte normal do motor após o resfriamento', 'info'); this.modo = 'corte'; return; }
     this.alvo.pw = seg[2]; this.alvo.ng = 0; this.alvo.np = seg[2] === 0 && /marcha/i.test(seg[0]) ? P.npIdle : P.npVoo;
     if (this.tSeg >= seg[1]) { this.seg++; this.tSeg = 0; }
   }
@@ -211,10 +212,12 @@ export class MotorSim {
 
   monitorar(dt) {
     const P = this.P, s = this.s, tS = (this.modo === 'voo' || this.modo === 'estresse') ? 8 : 1;
+    const naPartida = !this.emMarcha && (this.modo === 'partida' || this.modo === 'corte'), emOperacao = ['marcha', 'voo', 'estresse'].includes(this.modo);
     const regras = [
-      ['temp_partida', this.modo === 'partida' && s.temp > P.tempPartida, `${P.temp} acima do limite de partida (${P.tempPartida} °C)`, P.tempPartidaDur],
-      ['temp_to', this.modo !== 'partida' && s.temp > P.tempTo, `${P.temp} acima do limite de decolagem (${P.tempTo} °C)`, P.tempTransDur],
-      ['temp_mcp', this.modo !== 'partida' && s.temp > P.tempMcp && s.temp <= P.tempTo, `${P.temp} na faixa de decolagem (> ${P.tempMcp} °C, máx. 5 min)`, 300],
+      ['temp_partida', naPartida && s.temp > P.tempPartida, `${P.temp} acima do limite de partida (${P.tempPartida} °C)`, P.tempPartidaDur],
+      ['temp_partida_max', naPartida && P.tempPartidaMax > P.tempPartida && s.temp > P.tempPartidaMax, `${P.temp} acima do máximo absoluto de partida (${P.tempPartidaMax} °C)`, P.tempPartidaMaxDur ?? 1],
+      ['temp_to', emOperacao && s.temp > P.tempTo, `${P.temp} acima do limite de decolagem (${P.tempTo} °C)`, P.tempTransDur],
+      ['temp_mcp', emOperacao && s.temp > P.tempMcp && s.temp <= P.tempTo, `${P.temp} na faixa de decolagem (acima do contínuo de ${P.tempMcp} °C; uso permitido por até 5 min)`, 300, 'info'],
       ['tq', s.tq > P.tqTo, `Torque acima do limite de decolagem (${P.tqTo}%)`, 5],
       ['ng', s.ng > P.ngTrans, `Ng acima do limite (${P.ngTrans}%)`, 10],
       ['np', s.np > P.npMax, `Np/N2 acima do limite (${P.npMax}%)`, 15],
@@ -222,10 +225,10 @@ export class MotorSim {
       ['oleoT', s.oleoT > P.oleoTmax, `Temperatura do óleo alta (> ${P.oleoTmax} °C)`, 30],
       ['vib', Math.max(s.vibC, s.vibT) > 0.6, 'Vibração do motor acima de 0,6 ips', 10]
     ];
-    for (const [id, ativo, txt, durMax] of regras) {
-      const x = this.exced[id] ??= { ativo: false, dur: 0, max: 0, vezes: 0 };
+    for (const [id, ativo, txt, durMax, nivel] of regras) {
+      const x = this.exced[id] ??= { ativo: false, dur: 0, max: 0, vezes: 0, nivel: nivel || 'al' };
       if (ativo) {
-        if (!x.ativo) { x.ativo = true; x.vezes++; this.evento('EXCEDÊNCIA: ' + txt, 'al'); }
+        if (!x.ativo) { x.ativo = true; x.vezes++; this.evento((x.nivel === 'info' ? '' : 'EXCEDÊNCIA: ') + txt, x.nivel); }
         x.dur += dt * tS; x.max = Math.max(x.max, id.startsWith('temp') ? s.temp : id === 'tq' ? s.tq : id === 'ng' ? s.ng : id === 'np' ? s.np : id === 'oleoP' ? s.oleoP : id === 'oleoT' ? s.oleoT : Math.max(s.vibC, s.vibT));
         if (durMax && x.dur > durMax && !x.avisado) { x.avisado = true; this.evento(`${txt} por ${x.dur.toFixed(0)} s (limite ${durMax} s): inspeção obrigatória conforme o manual do motor.`, 'cr'); }
       } else if (x.ativo) { x.ativo = false; this.evento(`Fim da excedência (${txt.split(' (')[0]}) – duração ${x.dur.toFixed(1)} s, máximo ${x.max.toFixed(1)}.`, 'info'); }

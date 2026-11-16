@@ -32,6 +32,7 @@ Endereços antigos do manual do 429 (ex.: `/#sensores`) são redirecionados para
 | ANAC | RBAC 43, 91, 145, 135, 65, 39 e particularidades do modelo |
 | Sistemas | Lista por capítulo ATA e ficha de cada componente (com atalho para o motor 3D) |
 | Dados | Exportar/importar backup, planilhas CSV e apagar dados |
+| Voo | **Teste de simulação de voo**: o helicóptero voa no 3D (partida, pairado, decolagem, subida, cruzeiro, descida, pouso e corte) com painel de voo (altitude, velocidade, Nr, torque, temperatura do motor) e os sensores acompanhando cada fase; falhas opcionais (pouso duro, sobretorque, luz de CHIP, vibração do rotor, superaquecimento do motor); no fim mostra os sensores que saíram da faixa, as inspeções condicionais e as tarefas indicadas. Também pelo botão **Simular voo** da barra do 3D |
 
 ### Situação do conteúdo de cada modelo
 
@@ -70,6 +71,17 @@ Barra do 3D: **Corte** (carcaças cortadas ao meio), **Raio-X**, **Sensores**, *
 
 > A simulação é um modelo didático de primeira ordem: usa os limites das fontes, mas não reproduz a dinâmica real do motor.
 > Os sensores "adicionais" (HUMS) são sugestões de monitoramento; instalar em aeronave exige projeto aprovado.
+
+## Atualizações e cache do navegador
+
+As páginas carregam os arquivos com `?v=<versão>` para o navegador não reaproveitar versões antigas do cache.
+Depois de alterar qualquer arquivo, atualize a versão antes de publicar:
+
+```bash
+python ferramentas/versionar.py . 20261116a
+```
+
+Se algo falhar ao carregar, a página mostra a mensagem de erro na tela (recarregue com Ctrl+F5).
 
 ## Rodar no WAMP
 

@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js';
-import { construirMotor } from './motor3d.js';
-import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261115f';
+import { construirMotor } from './motor3d.js?v=20261115f';
+import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261115f';
 
 const CFG = modeloAtual();
 try { await carregarScripts(['modelos/motor_comum.js', CFG.motorArq]); } catch (e) { mostrarErro(e.message); throw e; }
@@ -49,7 +49,7 @@ const motor = construirMotor(MOTOR);
 cena.add(motor.raiz);
 const S = MOTOR.escala || 1;
 const VISTA = { pos: new THREE.Vector3(...motor.vista.pos).multiplyScalar(S), alvo: new THREE.Vector3(...motor.vista.alvo).multiplyScalar(S) };
-camera.position.copy(VISTA.pos); controles.target.copy(VISTA.alvo);
+camera.position.copy(VISTA.pos); controles.target.copy(VISTA.alvo); controles.update();
 
 // gases de escape e faísca de ignição (efeitos da simulação)
 const matJato = new THREE.MeshBasicMaterial({ color: 0xff7a2a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
@@ -309,10 +309,18 @@ function ajustar() { const w = vista.clientWidth, h = vista.clientHeight; if (!w
 new ResizeObserver(ajustar).observe(vista); ajustar();
 const relogio = new THREE.Clock(); let acum = 0;
 const angGiro = { ng: 0, np: 0 };
-renderer.setAnimationLoop(() => {
+// a simulação anda no tempo real, em passos de até 50 ms – pelo laço de desenho ou, com a aba oculta, pelo temporizador
+let tSimUlt = performance.now();
+function avancarSim() {
+  const agora = performance.now(), d = Math.min((agora - tSimUlt) / 1000, 1.5); tSimUlt = agora;
+  if (sim.modo !== 'parado' || sim.s.ng > 0.5) for (let r = d; r > 1e-4; r -= 0.05) sim.passo(Math.min(0.05, r));
+}
+setInterval(() => { if (performance.now() - tSimUlt > 300) { avancarSim(); aoVivo(); } }, 250);
+let erroLaco = false;
+renderer.setAnimationLoop(() => { try { quadro(); } catch (e) { if (!erroLaco) { erroLaco = true; mostrarErro('Erro no desenho 3D: ' + e.message); } } });
+function quadro() {
   const dtReal = Math.min(relogio.getDelta(), 0.5), dt = Math.min(dtReal, 0.1), t = relogio.elapsedTime;
-  // a simulação anda no tempo real, em passos de até 50 ms (mesmo se o navegador desenhar poucos quadros)
-  if (sim.modo !== 'parado' || sim.s.ng > 0.5) for (let r = dtReal; r > 1e-4; r -= 0.05) sim.passo(Math.min(0.05, r));
+  avancarSim();
   if (voo) {
     const k = Math.min((performance.now() - voo.t0) / voo.dur, 1), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     camera.position.lerpVectors(voo.p0, voo.p1, e); controles.target.lerpVectors(voo.a0, voo.a1, e); if (k >= 1) voo = null;
@@ -326,7 +334,7 @@ renderer.setAnimationLoop(() => {
   controles.update(); renderer.render(cena, camera); rotulos();
   acum += dt;
   if (acum > 0.2) { acum = 0; aoVivo(); }
-});
+}
 
 /* =====================================================================
    Painel: abas
@@ -452,7 +460,7 @@ function aoVivo(forcar = false) {
   $('#instrumentos').hidden = !rodando && sim.evts.length === 0;
   if (!$('#instrumentos').hidden) atualizarInstrumentos();
   const f = $('#faseSim'); f.hidden = !rodando; if (rodando) f.textContent = sim.fase;
-  const nAlertas = Object.values(sim.exced).filter((x) => x.vezes).length; selo(nAlertas);
+  const nAlertas = Object.values(sim.exced).filter((x) => x.vezes && x.nivel !== 'info').length; selo(nAlertas);
   if (abaAtual === 'sensores') for (const s of SENS) { const el = conteudo.querySelector(`[data-v="${s.id}"]`); if (el) { const v = valorSensor(sim, Object.assign({}, s, { falha: falhasSensor[s.id] })); el.textContent = s.lim === 'bool' ? (v >= 1 ? 'ATIVO' : 'normal') : fmt(v, s.un === 'ips' ? 2 : 1) + ' ' + s.un; } }
   if (abaAtual !== 'testes') return;
   $('#simFase').textContent = sim.fase;
@@ -587,7 +595,7 @@ conteudo.addEventListener('click', (e) => {
   if (t.dataset.gizmo) { modoGizmo = t.dataset.gizmo; anexarGizmo(); desenhar.editar(); return; }
   if (t.id === 'btTodosRot') { verRotulos = !verRotulos; $('#btRotulos').classList.toggle('on', verRotulos); desenhar.sensores(); return; }
   if (t.id === 'btPartida') { sim.partida(falhaPartida); desenhar.testes(); return; }
-  if (t.id === 'btAbortar') { sim.abortar(sim.modo === 'partida' ? 'Partida abortada pelo operador' : 'Corte do motor pelo operador'); return; }
+  if (t.id === 'btAbortar') { if (sim.modo === 'partida') sim.abortar('Partida abortada pelo operador'); else sim.abortar('Corte do motor pelo operador', 'info'); return; }
   if (t.id === 'btVoo') { sim.voo(); desenhar.testes(); return; }
   if (t.id === 'btEstresse') { sim.estressar(tipoEstresse, intensidade); ligarCarga(true); desenhar.testes(); return; }
   if (t.id === 'btBite') { rodarBite(); return; }
