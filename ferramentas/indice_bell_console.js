@@ -1,14 +1,23 @@
-/* Manutenção Interativa – gera interno/indice_manuais_bell.json a partir do portal Bell (uso interno, material proprietário).
+/* Manutenção Interativa – baixa do portal Bell os dados para a cópia INTERNA (material proprietário: não publicar).
    Rode no Chrome, logado em https://www.bellhelicopter.net/tp/ : F12 → Console → colar → Enter (pode pedir "allow pasting").
-   Leva alguns minutos. No fim o Chrome baixa "indice_manuais_bell.json": copie para a pasta interno/ da cópia interna.
-   Conteúdo: todos os procedimentos (título, tipo, código DMC ou capítulo, link), o texto das descrições de sistemas
-   (data modules 040/041/042), as peças do catálogo ilustrado (IPC: item, PN, nomenclatura, efetividade, UPA) e a lista
-   de figuras de cada módulo. Opcional: baixar as figuras (SVG) dos capítulos em FIGURAS_CAPS para a pasta interno/figuras/
-   (o Chrome pede uma vez para permitir vários downloads). */
+   O Chrome pede uma vez para "permitir vários downloads": aceite. Demora (dezenas de minutos para a frota toda):
+   deixe a aba aberta e acompanhe o progresso no Console.
+
+   Arquivos baixados (coloque todos na pasta interno/ e extraia os .zip ali mesmo):
+     indice_manuais_bell.json   índice de todos os procedimentos, descrições de sistemas, peças do IPC e lista de figuras
+     textos_<modelo>.json       texto completo de todos os procedimentos (IETM) ou de todas as páginas (manuais por capítulo)
+     figuras_<modelo>.zip       figuras detalhadas: SVG das figuras do IETM e PNG das páginas de figura dos manuais por capítulo
+                                (extraia em interno/ → cria interno/figuras/)
+
+   Ajustes: MODELOS (modelos a baixar), TEXTOS (true/false), FIGURAS ('todas', lista de capítulos ATA como ['67','76'] ou []). */
 (async () => {
   const MODELOS = window.__MI_MODELOS || ['505', '407', '407GXi', '429', '206B', '206L4', '230', '430'];
-  const FIGURAS_CAPS = ['67', '76']; // capítulos ATA cujas figuras serão baixadas como SVG ([] = não baixar figuras)
-  const g = async (u) => { const r = await fetch('https://gateway.bellhelicopter.net/' + u, { credentials: 'include' }); return r.ok ? r.json() : null; };
+  const TEXTOS = window.__MI_TEXTOS ?? true;
+  const FIGURAS = window.__MI_FIGURAS ?? 'todas';
+  const PARALELO = 6;
+  const GW = 'https://gateway.bellhelicopter.net/';
+  const g = async (u, tipo = 'json') => { for (let t = 0; t < 3; t++) { try { const r = await fetch(GW + u, { credentials: 'include' }); if (r.ok) return tipo === 'json' ? r.json() : r.blob(); if (r.status === 404) return null; } catch (e) { /* tenta de novo */ } await new Promise((ok) => setTimeout(ok, 800 * (t + 1))); } return null; };
+  const emParalelo = async (itens, fn, rotulo) => { const fila = itens.slice(); let n = 0; await Promise.all(Array.from({ length: PARALELO }, async () => { while (fila.length) { const x = fila.shift(); try { await fn(x); } catch (e) { /* segue */ } if (++n % 200 === 0) console.log(rotulo, n, '/', itens.length); } })); };
   const limpar = (html) => {
     const d = document.createElement('div'); d.innerHTML = html;
     d.querySelectorAll('#ietm_module_title,.ietm_metadata,script,style,#ietm_dm_applic_rules').forEach((e) => e.remove());
@@ -19,8 +28,6 @@
     d.querySelectorAll('p,li,h1,h2,h3,h4,h5,dt,dd,br,div').forEach((e) => e.append('\n'));
     return d.textContent.replace(/[ \t ]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').replace(/^(References|List of figures)\n/gm, '').trim();
   };
-  const R = { gerado: new Date().toISOString(), fonte: 'https://www.bellhelicopter.net/tp/', modelos: {}, fichas: {}, pecas: {}, figuras: {} };
-  const descricoes = [], ipc = [];
   const pecasIpc = (html) => {
     const d = document.createElement('div'); d.innerHTML = html;
     return [...d.querySelectorAll('tr.ietm_ipd_item')].map((tr) => {
@@ -29,56 +36,86 @@
       return [td[0].textContent.trim(), td[1].textContent.trim(), (c2.querySelector('span') || c2).textContent.trim().replace(/\s+/g, ' '), extra, td[3] ? td[3].textContent.trim() : '', td[5] ? td[5].textContent.trim() : ''];
     }).filter(Boolean);
   };
+  const baixar = (blob, nome) => { if (window.__MI_SEM_DOWNLOAD) { (window.__MI_ARQ ??= {})[nome] = blob; return; } const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); };
+  const json = (o) => new Blob([JSON.stringify(o)], { type: 'application/json' });
+  // ZIP (deflate) montado no navegador: um arquivo por modelo em vez de milhares de downloads
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = (u8) => { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  function novoZip() {
+    const partes = [], central = []; let pos = 0;
+    return {
+      async add(nome, blob) {
+        const dados = new Uint8Array(await blob.arrayBuffer()), crc = crc32(dados);
+        const comp = new Uint8Array(await new Response(new Blob([dados]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+        const nm = new TextEncoder().encode(nome), h = new DataView(new ArrayBuffer(30));
+        h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 8, true); h.setUint16(12, 23585, true); h.setUint32(14, crc, true);
+        h.setUint32(18, comp.length, true); h.setUint32(22, dados.length, true); h.setUint16(26, nm.length, true);
+        partes.push(h, nm, comp);
+        const c = new DataView(new ArrayBuffer(46));
+        c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(10, 8, true); c.setUint16(14, 23585, true); c.setUint32(16, crc, true);
+        c.setUint32(20, comp.length, true); c.setUint32(24, dados.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, pos, true);
+        central.push(c, nm); pos += 30 + nm.length + comp.length;
+      },
+      fim() {
+        const tam = central.reduce((a, p) => a + (p.byteLength ?? p.length), 0), n = central.length / 2, e = new DataView(new ArrayBuffer(22));
+        e.setUint32(0, 0x06054b50, true); e.setUint16(8, n, true); e.setUint16(10, n, true); e.setUint32(12, tam, true); e.setUint32(16, pos, true);
+        return new Blob([...partes, ...central, e], { type: 'application/zip' });
+      }
+    };
+  }
+  const quer = (cap) => FIGURAS === 'todas' || (Array.isArray(FIGURAS) && FIGURAS.includes(cap));
+
+  const R = { gerado: new Date().toISOString(), fonte: 'https://www.bellhelicopter.net/tp/', modelos: {}, fichas: {}, pecas: {}, figuras: {}, paginas: {} };
   for (const m of MODELOS) {
-    const M = { manuais: [], sistemas: {}, dms: [], capitulos: [] };
+    const M = { manuais: [], sistemas: {}, dms: [], capitulos: [] }; R.modelos[m] = M;
     const t = await g('toc/model/' + m); M.manuais = ((t && t.toc) || []).map((x) => [x.toc, x.manual]);
+    const TX = {}; const zip = novoZip(); let nFig = 0;
     const s = await g('toc/sns/' + m);
-    if (s && s.sns) {
+    if (s && s.sns && s.sns.length) {
+      // ---------- IETM (S1000D): índice, descrições, IPC, textos e figuras ----------
       const vistos = new Set();
       const andar = (nos, cam) => { for (const c of nos) {
-        if (c.type === 'dmc') {
-          if (vistos.has(c.dmc)) continue; vistos.add(c.dmc);
-          const d = [cam[cam.length - 1] || '', c.title, c.subtitle, c.dmc.replace(/^DMC-/, ''), c.pmc.replace(/^PMC-/, ''), c.applic && c.applic.text !== 'ALL' ? c.applic.text : ''];
-          M.dms.push(d); if (/-04[0-2]A-/.test(d[3])) descricoes.push([m, d]); else if (/-94\dA-/.test(d[3])) ipc.push([m, d]);
-        } else { M.sistemas[c.id] = c.title; andar(c.children || [], [...cam, c.id]); }
+        if (c.type === 'dmc') { if (vistos.has(c.dmc)) continue; vistos.add(c.dmc); M.dms.push([cam[cam.length - 1] || '', c.title, c.subtitle, c.dmc.replace(/^DMC-/, ''), c.pmc.replace(/^PMC-/, ''), c.applic && c.applic.text !== 'ALL' ? c.applic.text : '']); }
+        else { M.sistemas[c.id] = c.title; andar(c.children || [], [...cam, c.id]); }
       } };
       andar(s.sns, []);
-      // figuras (ICN) de cada módulo, pelo sumário de cada publicação
       for (const pmc of new Set(M.dms.map((d) => d[4]))) {
         const toc = await g(`toc/ietm/${m}/PMC-${pmc}`);
         const ir = (pms) => { for (const p of (pms || [])) { for (const d of (p.dms || [])) if (d.figures && d.figures.length) R.figuras[d.dmCode.dmc.replace(/^DMC-/, '')] = d.figures.flatMap((f) => (f.sheets || []).map((sh) => [String(f.title || '').replace(/\s+/g, ' '), sh.icn])); ir(p.pm); } };
         if (toc) ir(toc.pm);
       }
+      console.log(m, 'índice:', M.dms.length, 'módulos – lendo os módulos…');
+      await emParalelo(M.dms, async (d) => {
+        const j = await g(`ietm/${m}/PMC-${d[4]}/DMC-${d[3]}`); if (!j || !j.ietm) return;
+        if (/-94\dA-/.test(d[3])) R.pecas[d[3]] = pecasIpc(j.ietm.module);
+        else { const txt = limpar(j.ietm.module); if (/-04[0-2]A-/.test(d[3])) R.fichas[d[3]] = txt; if (TEXTOS) TX[d[3]] = txt; }
+      }, m + ' módulos');
+      const icns = new Map(); for (const d of M.dms) if (quer((d[0] || '').slice(0, 2))) for (const [, icn] of (R.figuras[d[3]] || [])) icns.set(icn, 1);
+      console.log(m, 'figuras:', icns.size);
+      await emParalelo([...icns.keys()], async (icn) => { const b = await g(`icn/${m}/${icn}`, 'blob'); if (b) { await zip.add(`figuras/${icn}.svg`, b); nFig++; } }, m + ' figuras');
+    } else {
+      // ---------- manuais por capítulo (206B, 206L4, 230, 430…): texto de todas as páginas e páginas de figura ----------
+      for (const man of ['MM', 'MPI', 'MO', 'IPB']) {
+        if (!M.manuais.some((x) => x[0] === man)) continue;
+        const d = await g('toc/model/' + m + '/' + man);
+        for (const mm of ((d && d.toc && d.toc.manuals) || [])) for (const p of (mm.publications || [])) for (const f of (p.files || [])) M.capitulos.push([man, p.title, p.revision, f.title, f.url]);
+      }
+      console.log(m, 'capítulos:', M.capitulos.length, '– lendo as páginas…');
+      for (const c of M.capitulos.filter((c) => !window.__MI_SO_CAP || window.__MI_SO_CAP.some((k) => c[3].includes('Chapter ' + k)))) {
+        const id = c[4].split('/').pop(), md = await g('metadata/' + id); if (!md) continue;
+        const figs = md.pages.filter((p) => p.figName).map((p) => [p.page, p.figName]);
+        R.paginas[id] = { n: md.nbPages, figs, path: md.path };
+        if (TEXTOS) { const pags = new Array(md.nbPages).fill(''); await emParalelo(md.pages.map((p) => p.page), async (n) => { const r = await g(`fulltext/${id}?page=${n}`); if (r) pags[n - 1] = String(r.value || '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim(); }, id + ' páginas'); TX[id] = pags; }
+        const cap = ((c[3].match(/Chapter\s+(\d+)/i) || [])[1] || '').padStart(2, '0');
+        if (quer(cap) || (FIGURAS === 'todas')) await emParalelo(figs, async ([n, fig]) => { const b = await g(`png/${id}?path=${encodeURIComponent(md.path)}&p=${n}`, 'blob'); if (b) { await zip.add(`figuras/${id}_p${n}.png`, b); nFig++; } }, id + ' figuras');
+      }
     }
-    for (const man of ['MM', 'MPI', 'MO']) {
-      if (!M.manuais.some((x) => x[0] === man)) continue;
-      const d = await g('toc/model/' + m + '/' + man);
-      for (const mm of ((d && d.toc && d.toc.manuals) || [])) for (const p of (mm.publications || [])) for (const f of (p.files || [])) M.capitulos.push([man, p.title, p.revision, f.title, f.url]);
-    }
-    R.modelos[m] = M; console.log('índice', m, M.dms.length, 'módulos', M.capitulos.length, 'capítulos');
+    if (TEXTOS) baixar(json(TX), `textos_${m}.json`);
+    if (nFig) baixar(zip.fim(), `figuras_${m}.zip`);
+    console.log('✔', m, 'pronto –', nFig, 'figuras');
+    if (window.__MI_SEM_DOWNLOAD) window.__MI_TX = TX;
   }
-  // descrições dos sistemas (texto do manual, para as fichas do 3D)
-  const fila = [...descricoes.map((x) => ['d', ...x]), ...ipc.map((x) => ['p', ...x])], total = fila.length; let feitos = 0;
-  const trabalhador = async () => { while (fila.length) {
-    const [tipo, m, d] = fila.shift();
-    try {
-      const j = await g(`ietm/${m}/PMC-${d[4]}/DMC-${d[3]}`);
-      if (j && j.ietm) { if (tipo === 'd') R.fichas[d[3]] = limpar(j.ietm.module).slice(0, 8000); else R.pecas[d[3]] = pecasIpc(j.ietm.module); }
-    } catch (e) { /* segue */ }
-    if (++feitos % 200 === 0) console.log('módulos lidos', feitos, '/', total);
-  } };
-  await Promise.all([1, 2, 3, 4, 5, 6].map(trabalhador));
-  console.log('pronto:', Object.keys(R.fichas).length, 'descrições,', Object.keys(R.pecas).length, 'listas de peças (IPC)');
   if (window.__MI_SEM_DOWNLOAD) { window.__MI_R = R; console.log('teste: resultado em window.__MI_R'); return; }
-  const baixar = (blob, nome) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.append(a); a.click(); a.remove(); };
-  baixar(new Blob([JSON.stringify(R)], { type: 'application/json' }), 'indice_manuais_bell.json');
-  // figuras (SVG) dos capítulos escolhidos → salvar em interno/figuras/
-  const icns = new Map();
-  for (const m of MODELOS) for (const d of (R.modelos[m].dms || [])) if (FIGURAS_CAPS.includes((d[0] || '').slice(0, 2))) for (const [, icn] of (R.figuras[d[3]] || [])) icns.set(icn, m);
-  if (icns.size) console.log('baixando', icns.size, 'figuras SVG – mova os arquivos para interno/figuras/');
-  for (const [icn, m] of icns) {
-    try { const r = await fetch(`https://gateway.bellhelicopter.net/icn/${m}/${icn}`, { credentials: 'include' }); if (r.ok) baixar(await r.blob(), icn + '.svg'); } catch (e) { /* segue */ }
-    await new Promise((ok) => setTimeout(ok, 350));
-  }
-  console.log('fim');
+  baixar(json(R), 'indice_manuais_bell.json');
+  console.log('FIM – mova os arquivos para interno/ e extraia os figuras_*.zip ali.');
 })();

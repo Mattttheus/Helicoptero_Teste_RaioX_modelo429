@@ -3,8 +3,8 @@
 // rotor de cauda), painel por tipo de aviônica, teste de movimento e procedimentos do índice interno dos manuais Bell.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { modeloAtual, mostrarErro } from './carregar.js?v=20261117b';
-import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117b';
+import { modeloAtual, mostrarErro } from './carregar.js?v=20261117c';
+import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117c';
 
 const CFG = modeloAtual();
 const CMD = window.COMANDOS, MC = CMD.modelos[CFG.id] || CMD.modelos['505'];
@@ -359,6 +359,38 @@ async function carregarIndice() {
   } catch (e) { indiceErro = e.message; }
   if (aba === 'procedimentos' || sel) render();
 }
+// Texto completo por modelo (interno/textos_<m>.json), carregado só quando preciso
+const TEXTOS = {}, carregandoTx = {};
+async function textosDe(m) {
+  if (TEXTOS[m] !== undefined) return TEXTOS[m];
+  carregandoTx[m] ??= fetch(`interno/textos_${encodeURIComponent(m)}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => (TEXTOS[m] = j));
+  return carregandoTx[m];
+}
+const docUrl = (m, id, p) => `${PORTAL}/doc/${encodeURIComponent(m)}/${encodeURIComponent(id)}${p ? '/p' + p : ''}`;
+// Manuais por capítulo: páginas cujo texto cita as palavras-chave do item (e páginas de figura do capítulo)
+async function paginasDe(sns, kw, limite = 12) {
+  const out = [];
+  if (!INDICE) return out;
+  const caps = new Set((sns || []).map((p) => p.slice(0, 2))), re = kw ? new RegExp(kw, 'i') : null;
+  for (const m of portalModelos) {
+    const M = INDICE.modelos[m]; if (!M || M.dms.length) continue;
+    const tx = await textosDe(m);
+    for (const c of M.capitulos) {
+      const n = (c[3].match(/Chapter\s+(\d+)/i) || [])[1]; if (!n || !caps.has(n.padStart(2, '0'))) continue;
+      const id = c[4].split('/').pop(), pags = tx && tx[id], info = INDICE.paginas && INDICE.paginas[id];
+      if (pags && re) pags.forEach((t, i) => { if (re.test(t)) out.push({ m, id, cap: c, p: i + 1, t, fig: info && info.figs.find((f) => f[0] === i + 1) }); });
+      if (info) for (const [pg, fig] of info.figs) if (!out.some((o) => o.id === id && o.p === pg) && (!re || (pags && re.test(pags[pg - 1] || '')))) out.push({ m, id, cap: c, p: pg, t: (pags && pags[pg - 1]) || '', fig: [pg, fig] });
+    }
+  }
+  return out.sort((a, b) => (b.fig ? 1 : 0) - (a.fig ? 1 : 0)).slice(0, limite);
+}
+function htmlPaginas(lista) {
+  if (!lista.length) return '';
+  const figs = lista.filter((o) => o.fig), txt = lista.filter((o) => !o.fig);
+  return `<details class="cartao" open><summary><b>Manual por capítulo – páginas relacionadas</b></summary>
+    ${figs.length ? `<div class="figs">${figs.map((o) => `<a class="fig" href="${docUrl(o.m, o.id, o.p)}" target="_blank" rel="noopener" title="Figura ${esc(o.fig[1])}"><img loading="lazy" src="interno/figuras/${esc(o.id)}_p${o.p}.png" alt="" onerror="this.remove()"><span>Fig. ${esc(o.fig[1])} · p. ${o.p}</span></a>`).join('')}</div>` : ''}
+    ${txt.map((o) => `<a class="proc" href="${docUrl(o.m, o.id, o.p)}" target="_blank" rel="noopener"><b>${esc(o.cap[3])}</b> – página ${o.p}<span class="sub">${esc(o.t.slice(0, 220))}…</span></a>`).join('')}</details>`;
+}
 const dmcUrl = (m, d) => `${PORTAL}/ietm/${encodeURIComponent(m)}/PMC-${d[4]}/DMC-${d[3]}`;
 function procedimentosDe(sns, kw, limite = 60) {
   if (!INDICE) return [];
@@ -423,7 +455,7 @@ function htmlProc(lista) {
   return lista.map(({ m, d, cap }) => cap
     ? `<a class="proc" href="${PORTAL}${esc(cap[4])}" target="_blank" rel="noopener"><b>${esc(cap[3])}</b><span class="sub">${esc(m)} · ${esc(cap[1])} · ${esc(cap[2] || '')}</span></a>`
     : `<a class="proc" href="${dmcUrl(m, d)}" target="_blank" rel="noopener"><b>${esc(d[1])}</b> – ${esc(d[2])}<span class="sub">${esc(m)} · SNS ${esc(d[0])}${d[5] ? ' · ' + esc(d[5]) : ''} <span class="dmc">DMC-${esc(d[3])}</span></span></a>` +
-      (INDICE.fichas && INDICE.fichas[d[3]] ? `<details style="margin:0 8px 6px"><summary class="sub">ver descrição</summary><div class="sub" style="white-space:pre-line;max-height:260px;overflow:auto">${esc(INDICE.fichas[d[3]].slice(0, 3000))}</div></details>` : '')).join('');
+      `<details class="txt-dm" data-m="${esc(m)}" data-dmc="${esc(d[3])}" style="margin:0 8px 6px"><summary class="sub">ver texto completo${INDICE.figuras && INDICE.figuras[d[3]] ? ' e figuras' : ''}${INDICE.pecas && INDICE.pecas[d[3]] ? ' e peças' : ''}</summary><div class="corpo sub" style="white-space:pre-line;max-height:420px;overflow:auto">carregando…</div></details>`).join('');
 }
 
 /* =====================================================================
@@ -435,11 +467,13 @@ function mostrarFicha(id) {
   const i = infoDe(id); if (!i) return;
   const fichaEl = $('#ficha'); if (!fichaEl) return;
   const lista = procedimentosDe(i.sns || [], i.kw);
+  paginasDe(i.sns, i.kw).then((L) => { const alvo = $('#fichaPaginas'); if (alvo && sel === id) alvo.innerHTML = htmlPaginas(L); });
   fichaEl.innerHTML = `<div class="cartao previa"><div class="tit">${esc(i.n)} <span class="tag">${esc((i.sns || [])[0] || '')}</span></div>
     <div class="sub">${esc(i.f || i.d || '')}</div>
     ${pecas[id] ? `<div class="sub">Grupo: ${esc(NOMES_G[i.g] || i.g)}</div>` : ''}
     ${htmlDescricao(i.sns)}
     ${htmlIpc(i.sns)}
+    <div id="fichaPaginas"></div>
     <h3 style="margin:10px 0 4px;font-size:13px">Procedimentos no manual Bell (${portalModelos.join(', ')})</h3>${htmlProc(lista)}</div>`;
 }
 function listaPecas() {
@@ -485,22 +519,29 @@ function render() {
         <input id="busca" placeholder="Buscar procedimento ou PN (ex.: servo, swashplate, 67-20, M207-20M478)" value="${esc(est.busca)}">
         <div class="linha"><select id="filCap"><option value="">Todos os capítulos ATA</option>${caps.map((c) => `<option ${est.cap === c ? 'selected' : ''} value="${c}">${c} – ${esc(sist[c] || '')}</option>`).join('')}</select>
         <select id="filTipo"><option value="">Todos os tipos</option>${['inspection', 'remove', 'install', 'description', 'rigging', 'servicing', 'test', 'fault', 'repair'].map((t) => `<option ${est.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        <label class="sub"><input type="checkbox" id="chkTexto" ${est.textoComp ? 'checked' : ''}> buscar também no texto completo dos procedimentos / páginas (carrega interno/textos_*.json)</label>
         <div id="resProc"></div>`
       : `<div class="cartao aviso-int"><div class="tit">Índice dos manuais Bell ainda não instalado</div>
         <div class="sub">Por ser material proprietário da Bell, o índice fica só na cópia interna (pasta <b>interno/</b>, fora do git e do GitHub Pages).<br>Para gerar:<br>1. No Chrome, entre em <b>https://www.bellhelicopter.net/tp/</b> com a conta da Helipark.<br>2. Aperte <b>F12</b> → aba <b>Console</b>, cole o código abaixo e aperte Enter (o Chrome pode pedir para digitar "allow pasting").<br>3. Salve o arquivo <b>indice_manuais_bell.json</b> baixado na pasta <b>interno/</b> desta instalação (WAMP / SharePoint).<br><small>Erro ao carregar: ${esc(indiceErro || 'carregando…')}</small></div>
         <textarea class="cola" readonly>${esc(SNIPPET)}</textarea><div class="linha"><button class="bt" id="btCopiar">Copiar código</button></div></div>`;
     if (!INDICE) { $('#btCopiar').onclick = () => navigator.clipboard?.writeText(SNIPPET); return; }
-    const filtrar = () => {
+    const filtrar = async () => {
       const q = est.busca.trim().toLowerCase(), termos = q.split(/\s+/).filter(Boolean); const out = [];
+      const TXs = {}; if (est.textoComp && termos.length) for (const [m] of M) TXs[m] = await textosDe(m);
       for (const [m, v] of M) {
         for (const d of v.dms) {
           if (est.cap && !(d[0] || '').startsWith(est.cap)) continue;
-          const txt = (d[0] + ' ' + d[1] + ' ' + d[2] + ' ' + d[3]).toLowerCase();
+          const txt = (d[0] + ' ' + d[1] + ' ' + d[2] + ' ' + d[3] + (TXs[m] && TXs[m][d[3]] ? ' ' + TXs[m][d[3]] : '')).toLowerCase();
           if (est.tipo && !txt.includes(est.tipo)) continue;
           if (termos.every((t) => txt.includes(t))) out.push({ m, d });
           if (out.length >= 300) break;
         }
-        if (!v.dms.length) for (const c of v.capitulos) { const txt = (c.join(' ')).toLowerCase(); if (termos.every((t) => txt.includes(t)) && (!est.cap || txt.includes('chapter ' + est.cap))) out.push({ m, cap: c }); }
+        if (!v.dms.length) for (const c of v.capitulos) {
+          const txt = (c.join(' ')).toLowerCase(); if (est.cap && !txt.includes('chapter ' + est.cap)) continue;
+          if (termos.every((t) => txt.includes(t))) out.push({ m, cap: c });
+          const id = c[4].split('/').pop(), pags = TXs[m] && TXs[m][id];
+          if (pags) pags.forEach((t, i) => { if (out.length < 300 && termos.every((w) => t.toLowerCase().includes(w))) out.push({ m, cap: [c[0], c[1], 'página ' + (i + 1), c[3] + ' – p. ' + (i + 1), c[4] + '/p' + (i + 1)] }); });
+        }
       }
       // peças (PN / nomenclatura) no catálogo ilustrado
       const pecasAch = [];
@@ -515,11 +556,22 @@ function render() {
     $('#busca').oninput = (e) => { est.busca = e.target.value; filtrar(); };
     $('#filCap').onchange = (e) => { est.cap = e.target.value; filtrar(); };
     $('#filTipo').onchange = (e) => { est.tipo = e.target.value; filtrar(); };
+    $('#chkTexto').onchange = (e) => { est.textoComp = e.target.checked; $('#resProc').innerHTML = '<div class="sub">carregando os textos…</div>'; filtrar(); };
     filtrar();
   }
   cont.querySelectorAll('.peca').forEach((e) => { e.onclick = () => selecionar(e.dataset.id); });
   if (sel && $('#ficha')) mostrarFicha(sel);
 }
+cont.addEventListener('toggle', async (e) => {
+  const el = e.target; if (!el.matches || !el.matches('details.txt-dm') || !el.open) return;
+  const corpo = el.querySelector('.corpo'); if (corpo.dataset.ok) return; corpo.dataset.ok = 1;
+  const m = el.dataset.m, dmc = el.dataset.dmc, M = INDICE.modelos[m], d = M && M.dms.find((x) => x[3] === dmc);
+  const tx = await textosDe(m), texto = (tx && tx[dmc]) || (INDICE.fichas && INDICE.fichas[dmc]) || '';
+  const pecasL = INDICE.pecas && INDICE.pecas[dmc];
+  corpo.innerHTML = (d ? htmlFiguras(m, d) : '') +
+    (pecasL ? `<table class="ipc"><tr><th>Item</th><th>PN</th><th>Nomenclatura</th><th>UPA</th></tr>${pecasL.map((r) => `<tr><td>${esc(r[0])}</td><td class="pn">${esc(r[1])}</td><td>${esc(r[2])}${r[3] ? `<div class="sub">${esc(r[3])}</div>` : ''}</td><td>${esc(r[4])}</td></tr>`).join('')}</table>` : '') +
+    (texto ? esc(texto) : (pecasL ? '' : 'Texto completo não instalado (interno/textos_' + esc(m) + '.json). Abra pelo link do portal.'));
+}, true);
 const est = { col: 0.3, lon: 0, lat: 0, ped: 0, girar: false, busca: '', cap: '', tipo: '' };
 document.querySelectorAll('#abas button').forEach((b) => { b.onclick = () => { aba = b.dataset.aba; render(); }; });
 addEventListener('keydown', (e) => { if (e.altKey && e.key >= '1' && e.key <= '4') { aba = ['comandos', 'painel', 'teste', 'procedimentos'][+e.key - 1]; render(); } });

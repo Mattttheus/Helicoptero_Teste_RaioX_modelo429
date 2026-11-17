@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261117b">
+  <link rel="stylesheet" href="style.css?v=20261117c">
   <script>
     // Endereços antigos do manual do 429 (ex.: /#sensores) continuam funcionando
     (function () {
@@ -63,11 +63,11 @@
   </div>
   <div id="erro" hidden></div>
 
-  <script src="modelos/catalogo.js?v=20261117b"></script>
+  <script src="modelos/catalogo.js?v=20261117c"></script>
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { construirHelicoptero } from './modelo.js?v=20261117b';
+    import { construirHelicoptero } from './modelo.js?v=20261117c';
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const CAT = window.CATALOGO;
     document.getElementById('modelos').innerHTML = CAT.map((c) => `<article class="modelo" data-id="${c.id}" style="--cor:${c.cor}">
@@ -102,7 +102,7 @@
     new ResizeObserver(ajustar).observe(vit); ajustar();
     mostrar(CAT[0].id);
     // Tabela resumida dos motores e dos seus sensores (dados de modelos/<id>/motor.js)
-    import('./carregar.js?v=20261117b').then(async ({ carregarScripts }) => {
+    import('./carregar.js?v=20261117c').then(async ({ carregarScripts }) => {
       await carregarScripts(['modelos/motor_comum.js']);
       const MOT = {};
       for (const c of CAT) { await carregarScripts([c.motorArq]); MOT[c.id] = window.MOTOR; }
