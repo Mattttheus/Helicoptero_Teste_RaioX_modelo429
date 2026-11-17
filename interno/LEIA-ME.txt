@@ -1,0 +1,16 @@
+MANUTENÇÃO INTERATIVA – pasta interna (NÃO vai para o git nem para o GitHub Pages)
+
+Aqui ficam os dados extraídos dos manuais da Bell (material proprietário – uso interno de manutenção da Helipark):
+
+  indice_manuais_bell.json   Índice de TODOS os procedimentos dos manuais Bell (título, código DMC/capítulo e link para o
+                             portal https://www.bellhelicopter.net/tp/) dos modelos 505, 407, 407GXi, 429, 206B, 206L4, 230 e 430.
+                             Usado pela aba "Procedimentos" e pelas fichas da página comandos.html (e pelo link "Procedimentos"
+                             de cada modelo no painel).
+
+Como gerar/atualizar o índice:
+  1. No Chrome, entre em https://www.bellhelicopter.net/tp/ com a conta Bell da Helipark.
+  2. F12 → aba Console → cole o código mostrado na aba "Procedimentos" da página comandos.html → Enter.
+     (O mesmo código está em ferramentas/indice_bell_console.js.)
+  3. O Chrome baixa "indice_manuais_bell.json": copie para esta pasta (cópia do WAMP e/ou pasta do SharePoint).
+
+Os links abrem o procedimento no portal Bell, que exige login. O conteúdo dos procedimentos não é copiado.

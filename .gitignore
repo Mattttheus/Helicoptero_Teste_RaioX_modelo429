@@ -4,3 +4,7 @@ api/dados/
 # manuais oficiais em PDF (material proprietário: não versionar)
 manuais/*
 !manuais/LEIA-ME.txt
+
+# índice e dados extraídos dos manuais Bell (material proprietário: só na cópia interna, não versionar)
+interno/*
+!interno/LEIA-ME.txt

@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="style.css?v=20261116c">
   <script>
     // Endereços antigos do manual do 429 (ex.: /#sensores) continuam funcionando
     (function () {
@@ -49,10 +49,13 @@
           <tr><td>Bell 206 JetRanger</td><td>Rolls-Royce / Allison 250-C20J</td><td>1 turboeixo (monomotor)</td><td>~420 SHP</td></tr>
           <tr><td>Bell 505 Jet Ranger X</td><td>Safran Arrius 2R (duplo FADEC)</td><td>1 turboeixo (monomotor)</td><td>~505 SHP</td></tr>
           <tr><td>Bell 429 GlobalRanger</td><td>Pratt &amp; Whitney Canada PW207D1</td><td>2 turboeixos (bimotor)</td><td>~625 SHP por motor</td></tr>
-          <tr class="nota"><td>Bell 412</td><td>P&amp;WC PT6T-3D / PT6T-9 Twin-Pac</td><td>2 turboeixos acoplados</td><td>~1.800 SHP (fora do escopo atual)</td></tr>
+          <tr><td>Bell 206L-4 LongRanger IV</td><td>Rolls-Royce 250-C30P</td><td>1 turboeixo (monomotor)</td><td>485 kW (~650 SHP) decolagem</td></tr>
+          <tr><td>Bell 230</td><td>2× Rolls-Royce 250-C30G/2</td><td>2 turboeixos (bimotor)</td><td>485 kW por motor (decolagem)</td></tr>
+          <tr><td>Bell 430</td><td>2× Rolls-Royce 250-C40B (controle eletrônico)</td><td>2 turboeixos (bimotor)</td><td>533 kW por motor (decolagem)</td></tr>
+          <tr class="nota"><td>Bell 412</td><td>P&amp;WC PT6T-3D / PT6T-9 Twin-Pac</td><td>2 turboeixos acoplados</td><td>~1.800 SHP (não consta na conta Bell da Helipark)</td></tr>
         </table>
       </div>
-      <p class="nota">Material de demonstração e treinamento. Os modelos 3D são ilustrativos. O Bell 429 usa dados do BHT-429-MPI; os demais estão como <b>prévia</b> (fontes públicas e fichas EASA dos motores) até a incorporação dos manuais oficiais colocados na pasta <b>manuais/</b>. Nada aqui substitui os manuais do fabricante nem os RBAC.</p>
+      <p class="nota">Material de demonstração e treinamento. Os modelos 3D são ilustrativos. O Bell 429 usa dados do BHT-429-MPI; os demais estão como <b>prévia</b> (fontes públicas e fichas EASA dos motores) até a incorporação dos manuais oficiais colocados na pasta <b>manuais/</b>. Os procedimentos oficiais de cada modelo (índice com link para o portal Bell) ficam na cópia interna, pasta <b>interno/</b>. Nada aqui substitui os manuais do fabricante nem os RBAC.</p>
     </section>
     <section class="vitrine" id="vitrine">
       <div class="legenda-vit"><b id="vitNome">—</b><span id="vitInfo"></span></div>
@@ -60,17 +63,17 @@
   </div>
   <div id="erro" hidden></div>
 
-  <script src="modelos/catalogo.js?v=20261116b"></script>
+  <script src="modelos/catalogo.js?v=20261116c"></script>
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { construirHelicoptero } from './modelo.js?v=20261116b';
+    import { construirHelicoptero } from './modelo.js?v=20261116c';
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const CAT = window.CATALOGO;
     document.getElementById('modelos').innerHTML = CAT.map((c) => `<article class="modelo" data-id="${c.id}" style="--cor:${c.cor}">
       <h2>${esc(c.nome)}</h2><div class="mot">${esc(c.motor)}</div>
       <dl><dt>Configuração</dt><dd>${esc(c.config)}</dd><dt>Potência</dt><dd>${esc(c.potencia)}</dd><dt>Controle</dt><dd>${esc(c.fadec)}</dd><dt>Rotor</dt><dd>${esc(c.rotor)}</dd></dl>
-      <div class="acoes"><a class="bt pri" href="manual.html?m=${c.id}">Manual 3D</a><a class="bt" href="motor.html?m=${c.id}">Motor 3D</a></div>
+      <div class="acoes"><a class="bt pri" href="manual.html?m=${c.id}">Manual 3D</a><a class="bt" href="motor.html?m=${c.id}">Motor 3D</a><a class="bt" href="comandos.html?m=${c.id}">Comandos e painel</a><a class="bt" href="comandos.html?m=${c.id}#procedimentos">Procedimentos</a></div>
       <div class="base">${esc(c.base)}</div></article>`).join('');
 
     // Vitrine 3D: mostra o modelo sob o mouse girando lentamente
@@ -99,7 +102,7 @@
     new ResizeObserver(ajustar).observe(vit); ajustar();
     mostrar(CAT[0].id);
     // Tabela resumida dos motores e dos seus sensores (dados de modelos/<id>/motor.js)
-    import('./carregar.js?v=20261116b').then(async ({ carregarScripts }) => {
+    import('./carregar.js?v=20261116c').then(async ({ carregarScripts }) => {
       await carregarScripts(['modelos/motor_comum.js']);
       const MOT = {};
       for (const c of CAT) { await carregarScripts([c.motorArq]); MOT[c.id] = window.MOTOR; }

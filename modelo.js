@@ -466,11 +466,14 @@ function construirMono(k, F) {
 
   // ---------- Motor e acessórios ----------
   const Mo = F.motor;
-  add('motor', cil([Mo.x0, Mo.y, 0], [Mo.x1, Mo.y, 0], Mo.r, M.motor, 20));
-  add('motor', cil([Mo.x0 + 0.12, Mo.y, 0], [Mo.x0, Mo.y, 0], Mo.r * 0.7, M.motor, 16));
-  add('motor', cil([Mo.x1, Mo.y, 0], [Mo.x1 - 0.18, Mo.y + 0.02, 0], Mo.r * 0.8, M.escuro, 16));
-  add('eixo_motor', cil([Mo.x0 + 0.12, Mo.y - 0.04, 0], [-0.22, T.y0 + 0.1, 0], 0.032, M.eixo, 10));
-  add('gerador', cil([Mo.x0 - 0.05, Mo.y - 0.17, 0.12], [Mo.x0 - 0.3, Mo.y - 0.17, 0.12], 0.07, M.ele, 12));
+  for (const mz of (F.motores || [0])) { // bimotores (230, 430): um motor de cada lado, eixos convergindo na transmissão
+    add('motor', cil([Mo.x0, Mo.y, mz], [Mo.x1, Mo.y, mz], Mo.r, M.motor, 20));
+    add('motor', cil([Mo.x0 + 0.12, Mo.y, mz], [Mo.x0, Mo.y, mz], Mo.r * 0.7, M.motor, 16));
+    add('motor', cil([Mo.x1, Mo.y, mz], [Mo.x1 - 0.18, Mo.y + 0.02, mz], Mo.r * 0.8, M.escuro, 16));
+    add('eixo_motor', cil([Mo.x0 + 0.12, Mo.y - 0.04, mz], [-0.22, T.y0 + 0.1, mz * 0.3], 0.032, M.eixo, 10));
+    add('gerador', cil([Mo.x0 - 0.05, Mo.y - 0.17, mz + (mz >= 0 ? 0.12 : -0.12)], [Mo.x0 - 0.3, Mo.y - 0.17, mz + (mz >= 0 ? 0.12 : -0.12)], 0.07, M.ele, 12));
+  }
+  if (F.motores && F.motores.length > 1) add('transmissao', caixa(0.3, 0.16, Math.abs(F.motores[0] - F.motores[1]) + 0.1, [-0.32, T.y0 + 0.08, 0], M.metal)); // caixa de combinação
   for (const e of F.escapes) add('escapamento', cil(e.a, e.b, e.r, M.escuro, 16, true));
   for (const s of [1, -1]) add('entrada_ar', esfera(1, [F.entrada.x, F.entrada.y, F.entrada.z * s], M.escuro, [0.26, 0.13, 0.03]));
   add('radiador_oleo', caixa(0.34, 0.18, 0.4, [F.radiador.x, F.radiador.y, 0], M.metal));
@@ -531,6 +534,42 @@ function construirMono(k, F) {
   k.vista = F.vista;
 }
 
+/* ---------- Modelos derivados (proporções tiradas das dimensões públicas; ilustrativos) ----------
+   derivar(): estica a cabine para a frente do ponto xCorte (dx metros) e alarga a fuselagem (escZ). */
+function derivar(base, o) {
+  const F = JSON.parse(JSON.stringify(base)), c = o.xCorte ?? 0.3, dx = o.dx || 0, ez = o.escZ || 1;
+  const f = (x) => (x > c ? x + dx : x);
+  F.fus = F.fus.map(([x, y, w, h, n]) => [f(x), y, w * ez, h, n]);
+  F.capo = F.capo.map(([x, y, w, h, n]) => [f(x), y, w * (o.escCapo || ez), h, n]); F.capoX = F.capoX.map(f);
+  F.nariz = f(F.nariz); F.pbrisa = F.pbrisa.map(f); F.chin = F.chin.map(f);
+  for (const k of ['v', 'p']) F.trip[k] = F.trip[k].map(f);
+  for (const k of ['v', 'p', 'vL', 'pL']) if (F.pax[k]) F.pax[k] = F.pax[k].map((x) => x + (x > c ? dx * 0.5 : 0));
+  const p0 = f(F.piso.x + F.piso.c / 2), p1 = f(F.piso.x - F.piso.c / 2); F.piso.x = (p0 + p1) / 2; F.piso.c = p0 - p1; F.piso.l *= ez;
+  for (const k of ['painel', 'tripAss', 'bateria', 'avionica', 'pitot']) F[k].x = f(F[k].x);
+  F.painel.l *= ez; F.tripAss.zs = F.tripAss.zs.map((z) => z * ez);
+  F.paxAssentos = F.paxAssentos.map((a) => Object.assign(a, { x: a.x + (a.x > c ? dx * 0.5 : 0), zs: a.zs.map((z) => z * ez) }));
+  F.esquis.xF = f(F.esquis.xF); F.esquis.tubos = F.esquis.tubos.map(f); F.esquis.z *= ez;
+  F.entrada.z *= (o.escCapo || ez);
+  Object.assign(F, o.extra || {});
+  if (o.rotor) Object.assign(F.rotor, o.rotor);
+  if (o.cores) F.cores = o.cores;
+  F.vista = Object.assign({}, F.vista, { pos: [10.5 + dx, 5.6, 13.5], raio: F.vista.raio + dx * 0.4 });
+  return F;
+}
+// Bell 206L-4 LongRanger IV: cabine ~0,6 m mais longa que a do 206B, rotor de 2 pás Ø 11,28 m, motor 250-C30P, 2 escapes verticais
+FORMAS['206L4'] = derivar(FORMAS['206'], { dx: 0.62, escZ: 1.04, rotor: { raio: 5.64, corda: 0.33 },
+  cores: { casca: 0xf1f3f5, casca2: 0x1f4f8f } });
+// Bell 230: bimotor (2× 250-C30G/2), rotor de 2 pás Ø 12,8 m, cabine larga e longa, 2 escapes (um por motor)
+FORMAS['230'] = derivar(FORMAS['407'], { dx: 0.9, escZ: 1.12, escCapo: 1.35, rotor: { raio: 6.4, pas: 2, corda: 0.4, y: 3.2 },
+  cores: { casca: 0xe9ecef, casca2: 0x7a1f2b, pa: 0x4a5059 },
+  extra: { motores: [0.27, -0.27], motor: { x0: -0.6, x1: -1.85, y: 2.2, r: 0.19 },
+    escapes: [{ a: [-1.75, 2.25, 0.3], b: [-2.15, 2.6, 0.38], r: 0.11 }, { a: [-1.75, 2.25, -0.3], b: [-2.15, 2.6, -0.38], r: 0.11 }] } });
+// Bell 430: bimotor (2× 250-C40B com FADEC), rotor de 4 pás sem rolamentos Ø 12,8 m, cabine mais longa que a do 230
+FORMAS['430'] = derivar(FORMAS['407'], { dx: 1.15, escZ: 1.14, escCapo: 1.35, rotor: { raio: 6.4, pas: 4, corda: 0.36, y: 3.25 },
+  cores: { casca: 0x1d2a3a, casca2: 0x9a7b3c, pa: 0x4a5059 },
+  extra: { motores: [0.27, -0.27], motor: { x0: -0.6, x1: -1.9, y: 2.22, r: 0.2 },
+    escapes: [{ a: [-1.8, 2.27, 0.3], b: [-2.2, 2.62, 0.38], r: 0.11 }, { a: [-1.8, 2.27, -0.3], b: [-2.2, 2.62, -0.38], r: 0.11 }] } });
+
 export const MODELOS_3D = ['429', ...Object.keys(FORMAS)];
 
 export function construirHelicoptero(id = '429') {
@@ -539,3 +578,4 @@ export function construirHelicoptero(id = '429') {
   if (F) construirMono(k, F); else construir429(k);
   return { raiz: k.raiz, partes: k.partes, malhas: k.malhas, rotores: k.rotores, matLinha: k.matLinha, vista: k.vista };
 }
+export { FORMAS };

@@ -3,10 +3,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261116b';
-import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261116b';
-import { construirMotor } from './motor3d.js?v=20261116b';
-import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261116b';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261116c';
+import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261116c';
+import { construirMotor } from './motor3d.js?v=20261116c';
+import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261116c';
 
 const CFG = modeloAtual();
 try { await carregarScripts(['modelos/motor_comum.js', CFG.motorArq]); } catch (e) { mostrarErro(e.message); throw e; }
@@ -26,6 +26,7 @@ document.documentElement.style.setProperty('--acento', CFG.cor);
 $('#selo').textContent = CFG.curto;
 $('#subModelo').textContent = `${CFG.nome} · ${MOTOR.nome}${MOTOR.qtd > 1 ? ` (${MOTOR.qtd} instalados)` : ''}`;
 $('#btManual').href = 'manual.html?m=' + CFG.id;
+$('#btComandos').href = 'comandos.html?m=' + CFG.id;
 $('#trocaModelo').innerHTML = (window.CATALOGO || []).map((c) => `<option value="${c.id}" ${c.id === CFG.id ? 'selected' : ''}>${esc(c.nome)} – ${esc(c.motor)}</option>`).join('');
 $('#trocaModelo').onchange = (e) => { location.href = 'motor.html?m=' + e.target.value + location.hash; };
 $('#rodape').textContent = `Motor ${MOTOR.nome} ilustrativo e simplificado para treinamento (dimensões e limites das fontes citadas na aba Motor). Não substitui o manual do fabricante do motor nem o RFM.`;

@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="style.css?v=20261116c">
   <script type="importmap">
     { "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -52,6 +52,7 @@
       <div id="barra">
         <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
         <a class="botao" id="btMotor" href="motor.html" title="Motor 3D editável com mapa de sensores e testes">Motor 3D</a>
+        <a class="botao" id="btComandos" href="comandos.html" title="Comandos de voo, painel 3D e procedimentos dos manuais">Comandos</a>
         <button id="btVoo" title="Simula um voo completo no 3D com os sensores acompanhando cada fase">Simular voo</button>
         <button id="btPainel" title="Esconde ou mostra o painel do manual">Ocultar painel</button>
         <button id="btSaude" title="Pinta os componentes pela condição lida nos sensores">Saúde</button>
@@ -69,8 +70,8 @@
     </main>
   </div>
 
-  <script src="modelos/catalogo.js?v=20261116b"></script>
-  <script type="module" src="app.js?v=20261116b"></script>
+  <script src="modelos/catalogo.js?v=20261116c"></script>
+  <script type="module" src="app.js?v=20261116c"></script>
   <script>
     // Aviso amigável se abrir direto do disco (módulos exigem servidor: WAMP, GitHub Pages etc.)
     if (location.protocol === 'file:') {

@@ -7,7 +7,7 @@ def tira(s):
     return re.sub(r'\?v=[\w.-]+', '', s)
 
 # 1) imports entre módulos: './arquivo.js'
-for f in ['app.js', 'motor.js', 'motores.js']:
+for f in ['app.js', 'motor.js', 'motores.js', 'comandos.js']:
     s = open(f, encoding='utf-8').read()
     s = re.sub(r"(from|import\()\s*'(\./[\w/.-]+?\.js)(\?v=[\w.-]+)?'", lambda m: f"{m.group(1)}{' ' if m.group(1) == 'from' else ''}'{m.group(2)}{SUF}'", s)
     open(f, 'w', encoding='utf-8', newline='\n').write(s)
@@ -23,11 +23,12 @@ erro = """  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w
     })();
   </script>
 """
-for f in ['index.html', 'manual.html', 'motor.html', 'motores.html']:
+for f in ['index.html', 'manual.html', 'motor.html', 'motores.html', 'comandos.html']:
     s = open(f, encoding='utf-8').read()
     s = re.sub(r'href="style\.css(\?v=[\w.-]+)?"', f'href="style.css{SUF}"', s)
     s = re.sub(r'src="modelos/catalogo\.js(\?v=[\w.-]+)?"', f'src="modelos/catalogo.js{SUF}"', s)
-    s = re.sub(r'src="(app|motor|motores)\.js(\?v=[\w.-]+)?"', lambda m: f'src="{m.group(1)}.js{SUF}"', s)
+    s = re.sub(r'src="(app|motor|motores|comandos)\.js(\?v=[\w.-]+)?"', lambda m: f'src="{m.group(1)}.js{SUF}"', s)
+    s = re.sub(r'src="modelos/comandos\.js(\?v=[\w.-]+)?"', f'src="modelos/comandos.js{SUF}"', s)
     s = re.sub(r"(from|import\()\s*'(\./[\w/.-]+?\.js)(\?v=[\w.-]+)?'", lambda m: f"{m.group(1)}{' ' if m.group(1) == 'from' else ''}'{m.group(2)}{SUF}'", s)
     if 'Mostra na tela qualquer erro' not in s:
         s = s.replace('  <link rel="stylesheet"', erro + '  <link rel="stylesheet"', 1)

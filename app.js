@@ -2,9 +2,9 @@
 // O modelo vem da URL (manual.html?m=505); os dados ficam em modelos/<id>/ (window.HELI).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261116b';
-import { construirHelicoptero } from './modelo.js?v=20261116b';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261116b';
+import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261116c';
+import { construirHelicoptero } from './modelo.js?v=20261116c';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261116c';
 
 const CFG = modeloAtual();
 try { await carregarScripts(CFG.arquivos); } catch (e) { mostrarErro(e.message); throw e; }
@@ -26,6 +26,7 @@ $('#selo').textContent = CFG.curto;
 $('#subModelo').textContent = `${CFG.nome} · ${CFG.motor} · ${INFO.ilustrativo ? 'prévia com fontes públicas' : 'base ' + INFO.manual}`;
 $('#rodape').textContent = INFO.aviso;
 $('#btMotor').href = 'motor.html?m=' + CFG.id;
+$('#btComandos').href = 'comandos.html?m=' + CFG.id;
 $('#trocaModelo').innerHTML = (window.CATALOGO || []).map((c) => `<option value="${c.id}" ${c.id === CFG.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('');
 $('#trocaModelo').onchange = (e) => { location.href = 'manual.html?m=' + e.target.value + location.hash; };
 
