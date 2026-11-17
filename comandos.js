@@ -3,8 +3,8 @@
 // rotor de cauda), painel por tipo de aviônica, teste de movimento e procedimentos do índice interno dos manuais Bell.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { modeloAtual, mostrarErro } from './carregar.js?v=20261117a';
-import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117a';
+import { modeloAtual, mostrarErro } from './carregar.js?v=20261117b';
+import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117b';
 
 const CFG = modeloAtual();
 const CMD = window.COMANDOS, MC = CMD.modelos[CFG.id] || CMD.modelos['505'];
@@ -393,7 +393,29 @@ function htmlDescricao(sns) {
   const r = descricaoDe(sns || []); if (!r) return '';
   return `<details class="cartao" open><summary><b>Descrição no manual Bell</b> – ${esc(r.d[1])} <span class="dmc">(${esc(r.m)} · DMC-${esc(r.d[3])})</span></summary>
     <div class="sub" style="white-space:pre-line;max-height:320px;overflow:auto;margin-top:6px">${esc(r.txt.slice(0, 4000))}${r.txt.length > 4000 ? '\n…' : ''}</div>
-    <a class="bt mini" href="${dmcUrl(r.m, r.d)}" target="_blank" rel="noopener">Abrir no portal Bell ›</a></details>`;
+    ${htmlFiguras(r.m, r.d)}<a class="bt mini" href="${dmcUrl(r.m, r.d)}" target="_blank" rel="noopener">Abrir no portal Bell ›</a></details>`;
+}
+// Peças do catálogo ilustrado (IPC, data modules 94x) e figuras dos módulos do item
+function ipcDe(sns) {
+  if (!INDICE || !INDICE.pecas) return [];
+  const out = [];
+  for (const p of sns) { for (const m of portalModelos) {
+    const M = INDICE.modelos[m]; if (!M) continue;
+    for (const d of M.dms) if (/-94\dA-/.test(d[3]) && d[0] === p && INDICE.pecas[d[3]]) out.push({ m, d, linhas: INDICE.pecas[d[3]] });
+  } if (out.length) break; }
+  return out.slice(0, 4);
+}
+const urlFigura = (m, d, icn) => `${PORTAL}/ietm/${encodeURIComponent(m)}/PMC-${d[4]}/DMC-${d[3]}/${icn}?tocView=manual&figureView=figure&view=split`;
+function htmlFiguras(m, d) {
+  const f = INDICE && INDICE.figuras && INDICE.figuras[d[3]]; if (!f || !f.length) return '';
+  return `<div class="figs">${f.slice(0, 6).map(([t, icn]) => `<a class="fig" href="${urlFigura(m, d, icn)}" target="_blank" rel="noopener" title="${esc(t)}"><img loading="lazy" src="interno/figuras/${esc(icn)}.svg" alt="" onerror="this.remove()"><span>${esc(t.length > 60 ? t.slice(0, 58) + '…' : t)}</span></a>`).join('')}</div>`;
+}
+function htmlIpc(sns) {
+  const lista = ipcDe(sns || []); if (!lista.length) return '';
+  return lista.map(({ m, d, linhas }) => `<details class="cartao" open><summary><b>Componentes (IPC)</b> – ${esc(d[1])} <span class="dmc">(${esc(m)} · DMC-${esc(d[3])})</span></summary>
+    ${htmlFiguras(m, d)}
+    <table class="ipc"><tr><th>Item</th><th>PN</th><th>Nomenclatura</th><th>UPA</th></tr>${linhas.slice(0, 60).map((r) => `<tr><td>${esc(r[0])}</td><td class="pn">${esc(r[1])}</td><td>${esc(r[2])}${r[3] ? `<div class="sub">${esc(r[3])}</div>` : ''}</td><td>${esc(r[4])}</td></tr>`).join('')}</table>
+    ${linhas.length > 60 ? `<div class="sub">+${linhas.length - 60} linhas no portal</div>` : ''}<a class="bt mini" href="${dmcUrl(m, d)}" target="_blank" rel="noopener">Abrir no IPC do portal Bell ›</a></details>`).join('');
 }
 function htmlProc(lista) {
   if (!INDICE) return `<div class="cartao aviso-int"><div class="tit">Índice dos manuais não carregado</div><div class="sub">Os procedimentos oficiais vêm do arquivo interno <b>interno/indice_manuais_bell.json</b> (fora do git e do GitHub Pages por ser material proprietário da Bell). Veja a aba <b>Procedimentos</b> para gerar o arquivo.</div></div>`;
@@ -417,6 +439,7 @@ function mostrarFicha(id) {
     <div class="sub">${esc(i.f || i.d || '')}</div>
     ${pecas[id] ? `<div class="sub">Grupo: ${esc(NOMES_G[i.g] || i.g)}</div>` : ''}
     ${htmlDescricao(i.sns)}
+    ${htmlIpc(i.sns)}
     <h3 style="margin:10px 0 4px;font-size:13px">Procedimentos no manual Bell (${portalModelos.join(', ')})</h3>${htmlProc(lista)}</div>`;
 }
 function listaPecas() {
@@ -458,8 +481,8 @@ function render() {
     const sist = {}; for (const [, v] of M) Object.assign(sist, v.sistemas);
     const caps = [...new Set(M.flatMap(([, v]) => v.dms.map((d) => (d[0] || '').slice(0, 2))))].filter(Boolean).sort();
     cont.innerHTML = INDICE ? `<div class="cartao previa"><div class="tit">Procedimentos dos manuais Bell – ${esc(portalModelos.join(' / '))}</div>
-        <div class="sub">Índice gerado em ${esc((INDICE.gerado || '').slice(0, 10))}${INDICE.fichas ? ` · ${Object.keys(INDICE.fichas).length} descrições de sistemas` : ''}: ${M.map(([m, v]) => `${esc(m)} ${v.dms.length ? v.dms.length + ' módulos (IETM)' : v.capitulos.length + ' capítulos (PDF)'}`).join(' · ')}. Os links abrem o portal Bell (precisa estar logado). Material proprietário: uso interno de manutenção.</div></div>
-        <input id="busca" placeholder="Buscar (ex.: servo, swashplate, chip detector, 67-20, remove…)" value="${esc(est.busca)}">
+        <div class="sub">Índice gerado em ${esc((INDICE.gerado || '').slice(0, 10))}${INDICE.fichas ? ` · ${Object.keys(INDICE.fichas).length} descrições de sistemas` : ''}${INDICE.pecas ? ` · ${Object.keys(INDICE.pecas).length} listas de peças (IPC)` : ''}: ${M.map(([m, v]) => `${esc(m)} ${v.dms.length ? v.dms.length + ' módulos (IETM)' : v.capitulos.length + ' capítulos (PDF)'}`).join(' · ')}. Os links abrem o portal Bell (precisa estar logado). Material proprietário: uso interno de manutenção.</div></div>
+        <input id="busca" placeholder="Buscar procedimento ou PN (ex.: servo, swashplate, 67-20, M207-20M478)" value="${esc(est.busca)}">
         <div class="linha"><select id="filCap"><option value="">Todos os capítulos ATA</option>${caps.map((c) => `<option ${est.cap === c ? 'selected' : ''} value="${c}">${c} – ${esc(sist[c] || '')}</option>`).join('')}</select>
         <select id="filTipo"><option value="">Todos os tipos</option>${['inspection', 'remove', 'install', 'description', 'rigging', 'servicing', 'test', 'fault', 'repair'].map((t) => `<option ${est.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
         <div id="resProc"></div>`
@@ -479,7 +502,15 @@ function render() {
         }
         if (!v.dms.length) for (const c of v.capitulos) { const txt = (c.join(' ')).toLowerCase(); if (termos.every((t) => txt.includes(t)) && (!est.cap || txt.includes('chapter ' + est.cap))) out.push({ m, cap: c }); }
       }
-      $('#resProc').innerHTML = `<div class="sub" style="margin:6px 0">${out.length >= 300 ? '300+ resultados (refine a busca)' : out.length + ' resultado(s)'}</div>` + htmlProc(out);
+      // peças (PN / nomenclatura) no catálogo ilustrado
+      const pecasAch = [];
+      if (INDICE.pecas && termos.length && q.length >= 3) for (const [m, v] of M) for (const d of v.dms) {
+        const L = INDICE.pecas[d[3]]; if (!L || (est.cap && !(d[0] || '').startsWith(est.cap))) continue;
+        for (const r of L) if (termos.every((t) => (r[1] + ' ' + r[2]).toLowerCase().includes(t))) { pecasAch.push({ m, d, r }); if (pecasAch.length >= 150) break; }
+        if (pecasAch.length >= 150) break;
+      }
+      $('#resProc').innerHTML = (pecasAch.length ? `<div class="cartao"><div class="tit">Peças no IPC (${pecasAch.length >= 150 ? '150+' : pecasAch.length})</div><table class="ipc"><tr><th>PN</th><th>Nomenclatura</th><th>Onde (IPC)</th></tr>${pecasAch.map(({ m, d, r }) => `<tr><td class="pn">${esc(r[1])}</td><td>${esc(r[2])}${r[3] ? `<div class="sub">${esc(r[3])}</div>` : ''}</td><td><a href="${dmcUrl(m, d)}" target="_blank" rel="noopener">${esc(d[1])}</a> <span class="dmc">${esc(m)} · item ${esc(r[0])}</span></td></tr>`).join('')}</table></div>` : '') +
+        `<div class="sub" style="margin:6px 0">${out.length >= 300 ? '300+ procedimentos (refine a busca)' : out.length + ' procedimento(s)'}</div>` + htmlProc(out);
     };
     $('#busca').oninput = (e) => { est.busca = e.target.value; filtrar(); };
     $('#filCap').onchange = (e) => { est.cap = e.target.value; filtrar(); };

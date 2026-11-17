@@ -56,8 +56,9 @@ Para tornar os manuais do 505, 206 e 407 fiéis ao fabricante, coloque os PDFs o
 
 A aba **Procedimentos** de `comandos.html` (e a ficha de cada peça) lista os procedimentos dos manuais Bell do modelo –
 título, tipo, código DMC (IETM S1000D do 505, 407/407GXi e 429) ou capítulo (manuais por capítulo do 206B, 206L4, 230 e 430) –
-com link direto para o portal **bellhelicopter.net/tp** (precisa de login), e o **texto das descrições de sistemas** do manual
-(data modules 040/041/042) na ficha de cada peça do 3D. O índice é material proprietário: fica só em
+com link direto para o portal **bellhelicopter.net/tp** (precisa de login), o **texto das descrições de sistemas** do manual
+(data modules 040/041/042), os **componentes do IPC** (PN, nomenclatura, efetividade, UPA – com busca por PN) e as **figuras**
+na ficha de cada peça do 3D. O índice é material proprietário: fica só em
 `interno/indice_manuais_bell.json` (pasta ignorada pelo git). Para gerar, veja `interno/LEIA-ME.txt` e
 `ferramentas/indice_bell_console.js` (código para colar no Console do Chrome, logado no portal).
 

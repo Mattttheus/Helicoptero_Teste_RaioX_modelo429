@@ -5,12 +5,17 @@ Aqui ficam os dados extraídos dos manuais da Bell (material proprietário – u
   indice_manuais_bell.json   Índice de TODOS os procedimentos dos manuais Bell (título, código DMC/capítulo e link para o
                              portal https://www.bellhelicopter.net/tp/) dos modelos 505, 407, 407GXi, 429, 206B, 206L4, 230 e 430.
                              Usado pela aba "Procedimentos" e pelas fichas da página comandos.html (e pelo link "Procedimentos"
-                             de cada modelo no painel).
+                             de cada modelo no painel). Inclui também o texto das descrições de sistemas, as peças do
+                             catálogo ilustrado (IPC: item, PN, nomenclatura, efetividade por SN, UPA) e a lista de figuras.
+  figuras/                   Figuras (SVG) do portal Bell dos capítulos escolhidos em FIGURAS_CAPS (padrão: 67 comandos de voo
+                             e 76 controles do motor). Aparecem como miniaturas nas fichas; sem elas, fica só o link da figura.
 
 Como gerar/atualizar o índice:
   1. No Chrome, entre em https://www.bellhelicopter.net/tp/ com a conta Bell da Helipark.
   2. F12 → aba Console → cole o código mostrado na aba "Procedimentos" da página comandos.html → Enter.
      (O mesmo código está em ferramentas/indice_bell_console.js.)
-  3. O Chrome baixa "indice_manuais_bell.json": copie para esta pasta (cópia do WAMP e/ou pasta do SharePoint).
+  3. Leva alguns minutos (milhares de módulos). O Chrome baixa "indice_manuais_bell.json" e, em seguida, as figuras
+     ICN-....svg (aceite "permitir vários downloads"). Copie o JSON para esta pasta e os SVG para interno/figuras/
+     (cópia do WAMP e/ou pasta do SharePoint).
 
 Os links abrem o procedimento no portal Bell, que exige login. O conteúdo dos procedimentos não é copiado.
