@@ -1,6 +1,6 @@
 // Manutenção Interativa – escolhe o modelo pela URL (?m=505) e carrega os arquivos de dados dele.
 // VERSAO: mude a cada publicação (python ferramentas/versionar.py . <nova-versão>) para o navegador não usar arquivos antigos do cache.
-export const VERSAO = '20261117c';
+export const VERSAO = '20261117d';
 export function modeloAtual() {
   const cat = window.CATALOGO || [];
   const id = new URLSearchParams(location.search).get('m');

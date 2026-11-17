@@ -3,10 +3,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261117c';
-import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261117c';
-import { construirMotor } from './motor3d.js?v=20261117c';
-import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261117c';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261117d';
+import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261117d';
+import { construirMotor } from './motor3d.js?v=20261117d';
+import { MotorSim, valorSensor, testarSensor, FALHAS_PARTIDA, TIPOS_ESTRESSE, FALHAS_SENSOR } from './simulacao.js?v=20261117d';
 
 const CFG = modeloAtual();
 try { await carregarScripts(['modelos/motor_comum.js', CFG.motorArq]); } catch (e) { mostrarErro(e.message); throw e; }

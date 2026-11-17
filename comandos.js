@@ -3,8 +3,8 @@
 // rotor de cauda), painel por tipo de aviônica, teste de movimento e procedimentos do índice interno dos manuais Bell.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { modeloAtual, mostrarErro } from './carregar.js?v=20261117c';
-import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117c';
+import { modeloAtual, mostrarErro } from './carregar.js?v=20261117d';
+import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117d';
 
 const CFG = modeloAtual();
 const CMD = window.COMANDOS, MC = CMD.modelos[CFG.id] || CMD.modelos['505'];
@@ -44,7 +44,8 @@ const sol = new THREE.DirectionalLight(0xffffff, 1.4); sol.position.set(4, 8, 6)
 const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 200);
 const controles = new OrbitControls(camera, renderer.domElement);
 controles.enableDamping = true; controles.minDistance = 0.4; controles.maxDistance = 30;
-const VISTA_GERAL = { pos: new THREE.Vector3(4.2, 4.0, 6.2), alvo: new THREE.Vector3(-0.6, 1.5, 0) };
+const xCentro = (G.painelX + G.trasX) / 2 - 0.3; // centraliza a cabine de cada modelo
+const VISTA_GERAL = { pos: new THREE.Vector3(xCentro + 4.6, 4.0, 6.6), alvo: new THREE.Vector3(xCentro, 1.5, 0) };
 const VISTA_PAINEL = { pos: new THREE.Vector3(G.assX - 0.2, G.painelY + 0.25, G.assZ * 0.4), alvo: new THREE.Vector3(G.painelX, G.painelY - 0.05, 0) };
 camera.position.copy(VISTA_GERAL.pos); controles.target.copy(VISTA_GERAL.alvo); controles.update();
 
@@ -216,7 +217,10 @@ function montar() {
     addM('ind_motor', bola(0.03, [(Mo.x0 + Mo.x1) / 2, Mo.y + Mo.r * 0.8, mz])); addM('ind_motor', bola(0.025, [Mo.x0 - 0.05, Mo.y + Mo.r * 0.6, mz]));
   });
   if (fadec) { addM('ecu', caixa([0.3, 0.08, 0.24], [G.trasX + 0.3, G.pisoY + 0.75, 0.2])); addM('ecu', tubo([G.trasX + 0.3, G.pisoY + 0.79, 0.2], [Mo.x0 - 0.12, Mo.y - 0.14, zMot[0]], 0.006, 6)); }
-  addM('ind_motor', tubo([Mo.x0 - 0.05, Mo.y + Mo.r * 0.6, zMot[0]], [G.painelX - 0.2, G.painelY + 0.1, 0], 0.005, 6));
+  { // chicote da indicação: motor → teto/parede → sob o piso → atrás do painel
+    const fio = [[Mo.x0 - 0.05, Mo.y + Mo.r * 0.6, zMot[0]], [Mo.x0 + 0.2, yDeck - 0.1, -0.35], [xParede - 0.2, y0 + 0.05, -0.35], [G.painelX - 0.1, y0 + 0.05, -0.35], [G.painelX + 0.12, G.painelY - 0.1, -0.3]];
+    for (let k = 0; k < fio.length - 1; k++) addM('ind_motor', tubo(fio[k], fio[k + 1], 0.005, 6));
+  }
   if (CMD.PECAS.servo_rc.so.includes(CFG.id)) addM('servo_rc', tubo([G.trasX - 0.1, y0 + 0.12, 0.25], [G.trasX - 0.45, y0 + 0.12, 0.25], 0.035, 14));
 }
 montar();
@@ -291,12 +295,12 @@ function montarPainel() {
   const tCw = new THREE.CanvasTexture(cw); tCw.colorSpace = THREE.SRGBColorSpace;
   face(tCw, Math.min(0.6, largura * 0.6), 0.075, 0, 0.165, 'alarmes'); itensPainel.alarmes = { n: 'Painel de alarmes (caution / warning)', d: 'Luzes/mensagens de alerta: limalha (CHIP), óleo da transmissão, combustível baixo, gerador, hidráulico, motor e rotação do rotor.', sns: ['31-50', '31'] };
   // pedestal com o painel de controles diversos
-  const gPd = new THREE.Group(); gPd.position.set(G.painelX - 0.35, G.pisoY + 0.3, 0); cena.add(gPd);
-  const ped = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.42, 0.24), mat(CORES.painel)); ped.rotation.z = -0.35; ped.userData.peca = 'pedestal'; gPd.add(ped); malhas.push(ped);
+  const gPd = new THREE.Group(); gPd.position.set(G.painelX - 0.3, G.pisoY + 0.2, 0); cena.add(gPd);
+  const ped = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.2), mat(CORES.painel)); ped.rotation.z = -0.35; ped.userData.peca = 'pedestal'; gPd.add(ped); malhas.push(ped);
   itensPainel.pedestal = { n: 'Pedestal e painel de controles diversos', d: 'Interruptores: ' + CMD.PEDESTAL.map((p) => p[0]).join(', ') + '; rádios e controles de navegação.', sns: ['31-10', '24', '29', '33', '76'] };
   CMD.PEDESTAL.forEach(([nome, ata], i) => {
     const id = 'int_' + i, s = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.02), mat(0xd0d4da));
-    s.position.set(-0.05 + (i % 4) * 0.05 - 0.1, 0.22 - Math.floor(i / 4) * 0.06, (i % 2 ? 0.05 : -0.05)); s.userData.peca = id; gPd.add(s); malhas.push(s);
+    s.position.set(-0.12 + (i % 4) * 0.06, 0.14 - Math.floor(i / 4) * 0.05, (i % 2 ? 0.05 : -0.05)); s.userData.peca = id; gPd.add(s); malhas.push(s);
     itensPainel[id] = { n: 'Interruptor ' + nome, d: 'Interruptor ' + nome + ' do painel de controles diversos.', sns: [ata, '31-10'] };
   });
 }
