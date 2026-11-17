@@ -2,9 +2,9 @@
 // O modelo vem da URL (manual.html?m=505); os dados ficam em modelos/<id>/ (window.HELI).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261117d';
-import { construirHelicoptero } from './modelo.js?v=20261117d';
-import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261117d';
+import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from './mapa.js?v=20261117f';
+import { construirHelicoptero } from './modelo.js?v=20261117f';
+import { modeloAtual, carregarScripts, mostrarErro } from './carregar.js?v=20261117f';
 
 const CFG = modeloAtual();
 try { await carregarScripts(CFG.arquivos); } catch (e) { mostrarErro(e.message); throw e; }

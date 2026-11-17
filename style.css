@@ -35,7 +35,7 @@ h1 { font-size: 16px; margin: 0; }
 #abas button.ativa { color: #17100a; background: var(--acento); font-weight: 700; }
 #abas .selo-n { position: absolute; top: -4px; right: -3px; min-width: 17px; padding: 0 4px; border-radius: 999px; background: var(--erro); color: #fff; font-size: 10px; line-height: 17px; font-weight: 700; }
 #abas .selo-n.ok { background: var(--ok); color: #06281a; }
-#app.sem-painel { grid-template-columns: 0 1fr; }
+#app.sem-painel { grid-template-columns: 1fr; } /* sem o painel, o 3D ocupa a largura toda (antes caía numa coluna de largura zero) */
 #app.sem-painel #painel { display: none; }
 .res-tipo { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--azul); }
 .item.oculto, h3.oculto { display: none; }

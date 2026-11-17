@@ -3,8 +3,8 @@
 // rotor de cauda), painel por tipo de aviônica, teste de movimento e procedimentos do índice interno dos manuais Bell.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { modeloAtual, mostrarErro } from './carregar.js?v=20261117d';
-import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117d';
+import { modeloAtual, mostrarErro } from './carregar.js?v=20261117f';
+import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117f';
 
 const CFG = modeloAtual();
 const CMD = window.COMANDOS, MC = CMD.modelos[CFG.id] || CMD.modelos['505'];
@@ -307,6 +307,68 @@ function montarPainel() {
 montarPainel();
 
 /* =====================================================================
+   Informação do manual no 3D: capítulo ATA → peças da cadeia de comando ou componentes da aeronave
+   ===================================================================== */
+const ATA_COMP = {
+  '21': ['entrada_ar', 'avionica'], '22': ['avionica'], '23': ['antenas', 'avionica'], '24': ['bateria', 'gerador'], '25': ['piso'],
+  '26': ['extintor'], '28': ['combustivel'], '29': ['hidraulico'], '30': ['pitot'], '31': ['avionica', 'avionica_tras'], '32': ['esquis'],
+  '33': ['luzes'], '34': ['pitot', 'antenas', 'avionica'], '45': ['avionica'], '46': ['avionica', 'avionica_tras'], '52': ['piso'],
+  '53': ['piso', 'suporte_trans'], '55': ['estabilizador', 'deriva'], '62': ['cubo_rp', 'pas_rp'], '63': ['transmissao', 'suporte_trans', 'eixo_motor'],
+  '64': ['rotor_cauda'], '65': ['eixo_rc', 'caixa_rc'], '71': ['motor'], '72': ['motor'], '73': ['motor'], '74': ['motor'], '75': ['entrada_ar', 'motor'],
+  '76': ['motor'], '77': ['motor'], '78': ['escapamento'], '79': ['radiador_oleo', 'motor'], '80': ['motor', 'gerador']
+};
+const NOME_ATA = { '21': 'Ar condicionado / ventilação', '22': 'Piloto automático', '23': 'Comunicações', '24': 'Energia elétrica', '25': 'Equipamentos / interior', '26': 'Proteção contra fogo', '28': 'Combustível', '29': 'Hidráulico', '30': 'Proteção contra gelo e chuva', '31': 'Indicação / registro', '32': 'Trem de pouso (esquis)', '33': 'Luzes', '34': 'Navegação', '45': 'Manutenção a bordo', '46': 'Integração de sistemas', '52': 'Portas', '53': 'Fuselagem', '55': 'Estabilizadores', '62': 'Rotor principal', '63': 'Transmissão do rotor principal', '64': 'Rotor de cauda', '65': 'Transmissão do rotor de cauda', '67': 'Comandos de voo', '71': 'Grupo motopropulsor', '72': 'Motor', '73': 'Combustível e controle do motor', '74': 'Ignição', '75': 'Ar do motor', '76': 'Controles do motor', '77': 'Indicação do motor', '78': 'Escapamento', '79': 'Óleo do motor', '80': 'Partida' };
+const matDestaque = new THREE.MeshStandardMaterial({ color: 0xffa040, emissive: 0x6a3000, metalness: 0.3, roughness: 0.5, transparent: true, opacity: 0.92 });
+let destacadas = [];
+function limparDestaque() { for (const m of destacadas) { m.material = m.userData.matOrig; m.visible = m.userData.visOrig; } destacadas = []; }
+function destacarComps(comps) {
+  limparDestaque(); const cx = new THREE.Box3();
+  for (const m of heli.malhas) if (comps.includes(m.userData.comp)) {
+    m.userData.matOrig = m.material; m.userData.visOrig = m.visible; m.material = matDestaque; m.visible = true; destacadas.push(m); cx.expandByObject(m);
+  }
+  return cx.isEmpty() ? null : cx;
+}
+// sns: código SNS/ATA do procedimento (ex.: '67-11-01', '21-00'); titulo/sub: para o cartão no 3D
+function mostrarNo3d(sns, titulo, sub, ref) {
+  sns = String(sns || ''); const cap = sns.slice(0, 2);
+  // 1) peça da cadeia de comando com o código mais específico (67 comandos; 29/73/76 quando houver peça própria)
+  let melhor = null, nota = -1;
+  for (const [id, p] of Object.entries(pecas)) for (const c of p.info.sns) if (sns === c || sns.startsWith(c + '-')) { const n = c.length + (sns === c ? 10 : 0); if (n > nota) { nota = n; melhor = id; } }
+  const usarPeca = melhor && (cap === '67' || (['29', '73', '76', '77'].includes(cap) && nota >= 5) || !ATA_COMP[cap]);
+  if (usarPeca) { limparDestaque(); selecionandoPorProc = true; selecionar(melhor); selecionandoPorProc = false; cartao3d = { titulo, sub: (sub ? sub + ' · ' : '') + pecas[melhor].info.n, ref, sns }; atualizarCartao3d(); return; }
+  if (cap === '67') { // comandos de voo em geral: destaca toda a cadeia
+    limparDestaque(); sel = null; for (const p of Object.values(pecas)) for (const m of p.mats) m.emissive.setHex(0x5a3a10);
+    voar(VISTA_GERAL.pos, VISTA_GERAL.alvo); cartao3d = { titulo, sub: (sub ? sub + ' · ' : '') + 'ATA 67 – Comandos de voo (cadeia inteira destacada)', ref, sns }; atualizarCartao3d(); return;
+  }
+  // 2) componentes da aeronave pelo capítulo ATA
+  const comps = ATA_COMP[cap] || [];
+  if (!heli.raiz.visible) { heli.raiz.visible = true; $('#btFuselagem').classList.add('on'); }
+  const cx = destacarComps(comps);
+  sel = null; realcar(null);
+  if (cx) { const c = cx.getCenter(new THREE.Vector3()), r = Math.max(cx.getSize(new THREE.Vector3()).length(), 0.8); const d = camera.position.clone().sub(controles.target).normalize().multiplyScalar(r * 1.6 + 1); voar(c.clone().add(d), c); }
+  cartao3d = { titulo, sub: (sub ? sub + ' · ' : '') + (NOME_ATA[cap] ? `ATA ${cap} – ${NOME_ATA[cap]}` : 'ATA ' + cap), ref, sns, semPeca: !cx };
+  atualizarCartao3d();
+}
+let cartao3d = null;
+function atualizarCartao3d() {
+  let el = $('#cartao3d');
+  if (!el) { el = document.createElement('div'); el.id = 'cartao3d'; vista.appendChild(el); }
+  if (!cartao3d) { el.hidden = true; return; }
+  const { titulo, sub, ref, semPeca } = cartao3d;
+  let figs = '', texto = '';
+  if (ref && INDICE) {
+    const M = INDICE.modelos[ref.m], d = M && M.dms.find((x) => x[3] === ref.dmc);
+    if (d) { figs = htmlFiguras(ref.m, d); texto = ((INDICE.fichas && INDICE.fichas[d[3]]) || '').replace(/\n(?=[a-z(])/g, ' '); }
+  }
+  el.hidden = false;
+  el.innerHTML = `<button class="fechar" title="Fechar">✕</button><div class="tit">${esc(titulo || '')}</div><div class="sub">${esc(sub || '')}${semPeca ? ' · sem peça correspondente no 3D' : ''}</div>
+    ${figs}${texto ? `<div class="sub txt">${esc(texto.slice(0, 600))}${texto.length > 600 ? '…' : ''}</div>` : ''}
+    <div class="linha">${ref ? `<a class="bt mini" href="${PORTAL}/ietm/${encodeURIComponent(ref.m)}/PMC-${esc(ref.pmc)}/DMC-${esc(ref.dmc)}" target="_blank" rel="noopener">Portal Bell ›</a>` : ''}${$('#app').classList.contains('sem-painel') ? '<button class="bt mini" data-acao="painel">Ver no painel</button>' : ''}</div>`;
+  el.querySelector('.fechar').onclick = () => { cartao3d = null; limparDestaque(); el.hidden = true; };
+  const bp = el.querySelector('[data-acao=painel]'); if (bp) bp.onclick = () => painelVisivel(true);
+}
+
+/* =====================================================================
    Seleção, rótulos e câmera
    ===================================================================== */
 let sel = null;
@@ -322,12 +384,15 @@ function centroDe(id) {
 }
 let voo = null;
 function voar(pos, alvo, dur = 700) { voo = { t0: performance.now(), dur, p0: camera.position.clone(), p1: pos.clone(), a0: controles.target.clone(), a1: alvo.clone() }; }
+let selecionandoPorProc = false;
 function selecionar(id, foco = true) {
   sel = id; realcar(id);
   document.querySelectorAll('.peca').forEach((e) => e.classList.toggle('ativo', e.dataset.id === id));
   const c = centroDe(id);
   if (foco && c) { const d = camera.position.clone().sub(controles.target).normalize().multiplyScalar(1.6); voar(c.clone().add(d), c); }
   mostrarFicha(id);
+  const i = infoDe(id);
+  if (i && !selecionandoPorProc) { cartao3d = { titulo: i.n, sub: (i.f || i.d || '').slice(0, 220), sns: (i.sns || [])[0], peca: id }; atualizarCartao3d(); }
 }
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let baixo = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { baixo = [e.clientX, e.clientY]; });
@@ -360,8 +425,8 @@ async function carregarIndice() {
     const r = await fetch('interno/indice_manuais_bell.json', { cache: 'no-cache' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     INDICE = await r.json();
-  } catch (e) { indiceErro = e.message; }
-  if (aba === 'procedimentos' || sel) render();
+  } catch (e) { indiceErro = e.message || String(e); }
+  if (aba === 'procedimentos' || sel || aba === 'teste') render();
 }
 // Texto completo por modelo (interno/textos_<m>.json), carregado só quando preciso
 const TEXTOS = {}, carregandoTx = {};
@@ -457,8 +522,8 @@ function htmlProc(lista) {
   if (!INDICE) return `<div class="cartao aviso-int"><div class="tit">Índice dos manuais não carregado</div><div class="sub">Os procedimentos oficiais vêm do arquivo interno <b>interno/indice_manuais_bell.json</b> (fora do git e do GitHub Pages por ser material proprietário da Bell). Veja a aba <b>Procedimentos</b> para gerar o arquivo.</div></div>`;
   if (!lista.length) return '<div class="sub">Nenhum procedimento encontrado para este item no índice.</div>';
   return lista.map(({ m, d, cap }) => cap
-    ? `<a class="proc" href="${PORTAL}${esc(cap[4])}" target="_blank" rel="noopener"><b>${esc(cap[3])}</b><span class="sub">${esc(m)} · ${esc(cap[1])} · ${esc(cap[2] || '')}</span></a>`
-    : `<a class="proc" href="${dmcUrl(m, d)}" target="_blank" rel="noopener"><b>${esc(d[1])}</b> – ${esc(d[2])}<span class="sub">${esc(m)} · SNS ${esc(d[0])}${d[5] ? ' · ' + esc(d[5]) : ''} <span class="dmc">DMC-${esc(d[3])}</span></span></a>` +
+    ? `<div class="proc-linha"><a class="proc" href="${PORTAL}${esc(cap[4])}" target="_blank" rel="noopener"><b>${esc(cap[3])}</b><span class="sub">${esc(m)} · ${esc(cap[1])} · ${esc(cap[2] || '')}</span></a><button class="bt mini ver3d" title="Mostrar no 3D" data-cap="${esc(((cap[3].match(/Chapter\s+(\d+)/i) || [])[1] || '').padStart(2, '0'))}" data-tit="${esc(cap[3])}">◎ 3D</button></div>`
+    : `<div class="proc-linha"><a class="proc" href="${dmcUrl(m, d)}" target="_blank" rel="noopener"><b>${esc(d[1])}</b> – ${esc(d[2])}<span class="sub">${esc(m)} · SNS ${esc(d[0])}${d[5] ? ' · ' + esc(d[5]) : ''} <span class="dmc">DMC-${esc(d[3])}</span></span></a><button class="bt mini ver3d" title="Mostrar no 3D" data-m="${esc(m)}" data-dmc="${esc(d[3])}">◎ 3D</button></div>` +
       `<details class="txt-dm" data-m="${esc(m)}" data-dmc="${esc(d[3])}" style="margin:0 8px 6px"><summary class="sub">ver texto completo${INDICE.figuras && INDICE.figuras[d[3]] ? ' e figuras' : ''}${INDICE.pecas && INDICE.pecas[d[3]] ? ' e peças' : ''}</summary><div class="corpo sub" style="white-space:pre-line;max-height:420px;overflow:auto">carregando…</div></details>`).join('');
 }
 
@@ -518,6 +583,7 @@ function render() {
     const M = INDICE ? portalModelos.map((m) => [m, INDICE.modelos[m]]).filter(([, v]) => v) : [];
     const sist = {}; for (const [, v] of M) Object.assign(sist, v.sistemas);
     const caps = [...new Set(M.flatMap(([, v]) => v.dms.map((d) => (d[0] || '').slice(0, 2))))].filter(Boolean).sort();
+    if (!INDICE && !indiceErro) { cont.innerHTML = '<div class="cartao previa"><div class="tit">Carregando o índice dos manuais Bell…</div><div class="sub">Arquivo interno de ~11 MB; leva alguns segundos.</div></div>'; return; }
     cont.innerHTML = INDICE ? `<div class="cartao previa"><div class="tit">Procedimentos dos manuais Bell – ${esc(portalModelos.join(' / '))}</div>
         <div class="sub">Índice gerado em ${esc((INDICE.gerado || '').slice(0, 10))}${INDICE.fichas ? ` · ${Object.keys(INDICE.fichas).length} descrições de sistemas` : ''}${INDICE.pecas ? ` · ${Object.keys(INDICE.pecas).length} listas de peças (IPC)` : ''}: ${M.map(([m, v]) => `${esc(m)} ${v.dms.length ? v.dms.length + ' módulos (IETM)' : v.capitulos.length + ' capítulos (PDF)'}`).join(' · ')}. Os links abrem o portal Bell (precisa estar logado). Material proprietário: uso interno de manutenção.</div></div>
         <input id="busca" placeholder="Buscar procedimento ou PN (ex.: servo, swashplate, 67-20, M207-20M478)" value="${esc(est.busca)}">
@@ -566,8 +632,19 @@ function render() {
   cont.querySelectorAll('.peca').forEach((e) => { e.onclick = () => selecionar(e.dataset.id); });
   if (sel && $('#ficha')) mostrarFicha(sel);
 }
+function ver3dDe(m, dmc) {
+  const M = INDICE && INDICE.modelos[m], d = M && M.dms.find((x) => x[3] === dmc); if (!d) return;
+  mostrarNo3d(d[0] || dmc.split('-').slice(2, 5).join('-'), `${d[1]} – ${d[2]}`, `${m} · SNS ${d[0]}`, { m, dmc, pmc: d[4] });
+}
+cont.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.ver3d'); if (!b) return;
+  e.preventDefault();
+  if (b.dataset.dmc) ver3dDe(b.dataset.m, b.dataset.dmc); else mostrarNo3d(b.dataset.cap, b.dataset.tit, '');
+  if (matchMedia('(max-width: 900px)').matches) vista.scrollIntoView({ behavior: 'smooth' });
+});
 cont.addEventListener('toggle', async (e) => {
   const el = e.target; if (!el.matches || !el.matches('details.txt-dm') || !el.open) return;
+  ver3dDe(el.dataset.m, el.dataset.dmc);
   const corpo = el.querySelector('.corpo'); if (corpo.dataset.ok) return; corpo.dataset.ok = 1;
   const m = el.dataset.m, dmc = el.dataset.dmc, M = INDICE.modelos[m], d = M && M.dms.find((x) => x[3] === dmc);
   const tx = await textosDe(m), texto = (tx && tx[dmc]) || (INDICE.fichas && INDICE.fichas[dmc]) || '';
@@ -595,7 +672,13 @@ let seq = null;
 function seguir(ids) { seq = { ids: ids.filter((i) => pecas[i]), i: 0, t: 0 }; }
 
 /* ---------- barra ---------- */
-$('#btPainel').onclick = (e) => { $('#app').classList.toggle('sem-painel'); e.target.textContent = $('#app').classList.contains('sem-painel') ? 'Mostrar painel' : 'Ocultar painel'; setTimeout(redim, 30); };
+function painelVisivel(mostrar) {
+  const app = $('#app'); app.classList.toggle('sem-painel', !mostrar);
+  const bt = $('#btPainel'); bt.textContent = mostrar ? 'Ocultar painel' : 'Mostrar painel'; bt.classList.toggle('on', !mostrar);
+  try { localStorage.setItem('mi_cmd_painel', mostrar ? '1' : '0'); } catch (e) { /* sem armazenamento */ }
+  requestAnimationFrame(redim); atualizarCartao3d();
+}
+$('#btPainel').onclick = () => painelVisivel($('#app').classList.contains('sem-painel'));
 $('#btFuselagem').onclick = (e) => { heli.raiz.visible = !heli.raiz.visible; e.target.classList.toggle('on', heli.raiz.visible); };
 $('#btCopiloto').onclick = (e) => { const on = !cpMalhas[0]?.visible; for (const m of cpMalhas) m.visible = on; e.target.classList.toggle('on', on); };
 $('#btRotulos').onclick = (e) => { comRotulos = !comRotulos; e.target.classList.toggle('on', comRotulos); };
@@ -603,8 +686,8 @@ $('#btVistaPainel').onclick = () => voar(VISTA_PAINEL.pos, VISTA_PAINEL.alvo);
 $('#btGeral').onclick = () => voar(VISTA_GERAL.pos, VISTA_GERAL.alvo);
 
 /* ---------- laço ---------- */
-function redim() { const r = vista.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(r.height, 1); camera.updateProjectionMatrix(); }
-addEventListener('resize', redim); redim();
+function redim() { const w = vista.clientWidth, h = vista.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+new ResizeObserver(redim).observe(vista); addEventListener('resize', redim); redim();
 let t0 = performance.now();
 renderer.setAnimationLoop((t) => {
   const dt = Math.min((t - t0) / 1000, 0.1); t0 = t;
@@ -616,4 +699,5 @@ renderer.setAnimationLoop((t) => {
 
 const lerHash = () => { const h = location.hash.slice(1); if (['comandos', 'painel', 'teste', 'procedimentos'].includes(h)) aba = h; };
 lerHash(); addEventListener('hashchange', () => { lerHash(); render(); });
+try { if (localStorage.getItem('mi_cmd_painel') === '0') painelVisivel(false); } catch (e) { /* sem armazenamento */ }
 render(); aplicar(); carregarIndice().catch((e) => mostrarErro(e.message));
