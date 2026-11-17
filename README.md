@@ -16,7 +16,7 @@ Cada modelo tem também o **motor em 3D editável**, com **mapa de instalação 
 | `index.html` | Painel de entrada: escolha do modelo, vitrine 3D e tabela de motorização |
 | `manual.html?m=<id>` | Manual interativo do helicóptero (`505`, `429`, `206`, `407`) |
 | `motor.html?m=<id>` | Motor 3D do modelo: peças, sensores, testes, manutenção e edição (`&s=<sensor>` abre direto num sensor) |
-| `comandos.html?m=<id>` | **Comandos de voo e painel 3D**: cadeia de comando (cíclico, coletivo, pedais → jackshafts, tubos, bellcranks, mixer → servos → swashplate / rotor de cauda), comandos duplos, painel de instrumentos por tipo de aviônica (G1000H NXi, BasiX-Pro, EFIS ou analógico), pedestal, **teste de movimento** e **seguir a cadeia**; aba **Procedimentos** com todos os procedimentos dos manuais Bell (índice interno) |
+| `comandos.html?m=<id>` | **Comandos de voo e painel 3D**: cadeia de comando (cíclico, coletivo, pedais → jackshafts, tubos, bellcranks, mixer → servos → swashplate / rotor de cauda), controle do motor (manete, ligação, FCU/HMU, ECU/FADEC, indicação), comandos duplos, painel de instrumentos por tipo de aviônica (G1000H NXi, BasiX-Pro, EFIS ou analógico), pedestal, **teste de movimento** e **seguir a cadeia**; aba **Procedimentos** com todos os procedimentos dos manuais Bell (índice interno) |
 | `motores.html` | **Tabela dos motores 3D com os sensores de cada motor, por modelo**: resumo dos 4 motores e matriz grandeza × modelo; passar o mouse num sensor marca a posição dele no motor 3D, clicar abre o motor do modelo naquele sensor; exporta CSV |
 
 Endereços antigos do manual do 429 (ex.: `/#sensores`) são redirecionados para `manual.html?m=429`.
@@ -56,7 +56,8 @@ Para tornar os manuais do 505, 206 e 407 fiéis ao fabricante, coloque os PDFs o
 
 A aba **Procedimentos** de `comandos.html` (e a ficha de cada peça) lista os procedimentos dos manuais Bell do modelo –
 título, tipo, código DMC (IETM S1000D do 505, 407/407GXi e 429) ou capítulo (manuais por capítulo do 206B, 206L4, 230 e 430) –
-com link direto para o portal **bellhelicopter.net/tp** (precisa de login). O índice é material proprietário: fica só em
+com link direto para o portal **bellhelicopter.net/tp** (precisa de login), e o **texto das descrições de sistemas** do manual
+(data modules 040/041/042) na ficha de cada peça do 3D. O índice é material proprietário: fica só em
 `interno/indice_manuais_bell.json` (pasta ignorada pelo git). Para gerar, veja `interno/LEIA-ME.txt` e
 `ferramentas/indice_bell_console.js` (código para colar no Console do Chrome, logado no portal).
 

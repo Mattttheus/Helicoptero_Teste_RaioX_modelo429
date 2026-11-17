@@ -34,6 +34,12 @@
     scissors:      { g: 'rotativo', n: 'Drive link / scissors do swashplate', sns: ['62-30', '67-13-03', '62'], kw: 'drive link|scissors|swashplate drive', f: 'Faz o prato rotativo girar junto com o mastro.' },
     pitch_links:   { g: 'rotativo', n: 'Pitch links do rotor principal', sns: ['62-10', '62-20', '67-13-04', '62'], kw: 'pitch link', f: 'Hastes entre o prato rotativo e os grips das pás: mudam o passo de cada pá.' },
     mastro:        { g: 'rotativo', n: 'Mastro do rotor principal', sns: ['63-20', '63'], kw: 'mast', f: 'Eixo da transmissão até o cubo do rotor.' },
+    // ---- Controle do motor ----
+    manete:        { g: 'motor', n: 'Manete do motor no coletivo (twist grip / interruptor THROTTLE)', sns: ['76-10', '76-11', '76-00', '76'], kw: 'throttle|twist grip|idle|fly', f: 'Twist grip (motores hidromecânicos: corte, marcha lenta, voo) ou interruptor IDLE/FLY (FADEC). Nos bimotores há uma manete por motor.' },
+    lig_motor:     { g: 'motor', n: 'Ligação da manete ao controle de combustível', sns: ['76-10', '76-11', '76-12', '76'], kw: 'throttle linkage|power lever|cable|control linkage|droop compensator|governor', f: 'Cabos/tubos do twist grip até a FCU (alavanca de potência) e do coletivo ao governador (compensador de queda de Nr). Nos motores FADEC o comando é elétrico.' },
+    fcu:           { g: 'motor', n: 'Controle de combustível no motor (FCU / HMU) e governador', sns: ['73-20', '73-21', '73', '76'], kw: 'fuel control|hmu|governor|fcu|fuel metering', f: 'Unidade no motor que dosa o combustível: FCU + governador da turbina livre (hidromecânico) ou HMU comandada pela ECU (FADEC).' },
+    ecu:           { g: 'motor', n: 'ECU / FADEC (controle eletrônico do motor)', sns: ['76-10', '73-25', '73', '76'], kw: 'ecu|fadec|engine control unit|eec|acu', f: 'Computador do motor: lê sensores (Ng, Np, MGT, torque, coletivo) e comanda a dosagem; canais e reserva conforme o modelo.', so: ['505', '407', '429', '430'] },
+    ind_motor:     { g: 'motor', n: 'Indicação e sensores do motor', sns: ['77-10', '77-20', '77', '31-40'], kw: 'torque|gas temperature|mgt|tot|tachometer|engine indicating', f: 'Torque, temperatura (MGT/TOT), Ng/N1, Np/N2 e Nr levados ao painel ou aos displays. Mapa completo de sensores na página Motor 3D.' },
     // ---- Direcional ----
     pedais:        { g: 'direcional', n: 'Pedais do piloto e ajuste', sns: ['67-20-01', '67-20-02', '67-21-02', '67-20'], kw: 'pedal', f: 'Comandam o passo do rotor de cauda (proa). Ajustáveis à frente/trás.' },
     ped_jack:      { g: 'direcional', n: 'Jackshafts dos pedais e suportes', sns: ['67-20-03', '67-21-03', '67-20'], kw: 'pedal jackshaft|jackshaft|torque tube', f: 'Eixos transversais sob o painel/piso que ligam os pedais do piloto e do copiloto.' },
@@ -58,7 +64,7 @@
     modelos: {
       '505':   { portal: ['505'], painel: 'g1000', trRc: 'cabo', rcX: -6.7, rcZ: -0.23, nota: 'G1000H NXi; comando direcional por cabos e polias; FADEC com transdutor do coletivo.' },
       '407':   { portal: ['407', '407GXi'], painel: 'g1000', trRc: 'tubo', rcX: -7.2, rcZ: -0.24, nota: '407GXi com G1000H NXi (o 407 original usa instrumentos analógicos); comando direcional por tubos; SCAS/trim opcional.' },
-      '429':   { portal: ['429'], painel: 'basix', trRc: 'cabo', rcX: -7.6, rcZ: -0.3, motores: 2, nota: 'BasiX-Pro com 3 displays; SCAS e trim de 3 eixos; servo direcional.' },
+      '429':   { portal: ['429'], painel: 'basix', trRc: 'cabo', rcX: -7.6, rcZ: -0.3, motores: 2, subida: { x: 0.85 }, nota: 'BasiX-Pro com 3 displays; SCAS e trim de 3 eixos; servo direcional. Os comandos saem de baixo dos assentos e sobem até o teto pela coluna da porta direita.' },
       '206':   { portal: ['206B'], painel: 'analog', trRc: 'tubo', rcX: -6.55, rcZ: -0.24, nota: 'Instrumentos analógicos; comando direcional por tubos.' },
       '206L4': { portal: ['206L4'], painel: 'analog', trRc: 'tubo', rcX: -7.1, rcZ: -0.24, nota: 'Instrumentos analógicos; comando direcional por tubos.' },
       '230':   { portal: ['230'], painel: 'analog', trRc: 'tubo', rcX: -7.7, rcZ: -0.26, motores: 2, nota: 'Bimotor com instrumentos duplos de motor; comando direcional por tubos.' },

@@ -3,8 +3,8 @@
 // rotor de cauda), painel por tipo de aviônica, teste de movimento e procedimentos do índice interno dos manuais Bell.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { modeloAtual, mostrarErro } from './carregar.js?v=20261116c';
-import { construirHelicoptero, FORMAS } from './modelo.js?v=20261116c';
+import { modeloAtual, mostrarErro } from './carregar.js?v=20261117a';
+import { construirHelicoptero, FORMAS } from './modelo.js?v=20261117a';
 
 const CFG = modeloAtual();
 const CMD = window.COMANDOS, MC = CMD.modelos[CFG.id] || CMD.modelos['505'];
@@ -62,8 +62,8 @@ heli.raiz.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
 cena.add(heli.raiz);
 
 /* ---------- materiais e cores por grupo ---------- */
-const CORES = { coletivo: 0xe0b23a, ciclico: 0x4f93e0, direcional: 0x46c08a, servos: 0x9b6ad8, rotativo: 0xaab3bd, painel: 0x39414b };
-const NOMES_G = { coletivo: 'Coletivo', ciclico: 'Cíclico', servos: 'Servos hidráulicos', rotativo: 'Swashplate e rotativos', direcional: 'Direcional (rotor de cauda)' };
+const CORES = { coletivo: 0xe0b23a, ciclico: 0x4f93e0, direcional: 0x46c08a, servos: 0x9b6ad8, rotativo: 0xaab3bd, motor: 0xe0663a, painel: 0x39414b };
+const NOMES_G = { coletivo: 'Coletivo', ciclico: 'Cíclico', servos: 'Servos hidráulicos', rotativo: 'Swashplate e rotativos', direcional: 'Direcional (rotor de cauda)', motor: 'Controle do motor' };
 const pecas = {}; // id -> { info, grupo, mats, meshes }
 const malhas = [];
 function mat(cor, o = {}) { return new THREE.MeshStandardMaterial({ color: cor, metalness: 0.45, roughness: 0.45, ...o }); }
@@ -97,7 +97,7 @@ function bellcrank(id, piv, a, b) { addM(id, bola(0.025, piv)); addM(id, tubo(pi
 const y0 = G.pisoY - 0.08;           // sob o piso
 const zP = G.assZ;                   // piloto à direita (+Z), copiloto à esquerda
 const xAss = G.assX, xPed = G.pedX;
-const xParede = Math.min(0.35, G.assX - 0.75); // parede traseira da cabine (subida dos comandos)
+const xParede = MC.subida ? MC.subida.x : Math.min(0.35, G.assX - 0.75); // subida dos comandos (parede traseira ou coluna da porta)
 const yDeck = G.deckY + 0.05, ySw = G.swY;
 const servos = { e: [0.24, -0.22], d: [0.24, 0.22], c: [-0.26, 0] };
 const ANIM = {}; // grupos que se movem no teste
@@ -205,6 +205,18 @@ function montar() {
   const gPcm = new THREE.Group(); gPcm.position.set(R.x, R.y, 0); peca('pcm').grupo.add(gPcm); ANIM.pcm = gPcm;
   addM('pcm', tubo([0, 0, 0], [0, 0, R.z - 0.05], 0.012), gPcm);
   addM('pcm', caixa([0.04, 0.3, 0.03], [0, 0, R.z - 0.06]), gPcm);
+  // ---- controle do motor: manete no coletivo → ligação → FCU/HMU no motor; ECU; indicação ----
+  const F = FORMAS[CFG.id], Mo = F ? F.motor : { x0: -0.9, x1: -2.3, y: 2.55, r: 0.2 }, zMot = (F && F.motores) || (MC.motores > 1 ? [0.3, -0.3] : [0]);
+  const fadec = CMD.PECAS.ecu.so.includes(CFG.id);
+  zMot.forEach((mz, i) => {
+    addM('manete', tubo([xAss + 0.43, G.pisoY + 0.27, zP - 0.22 - 0.035 * i], [xAss + 0.43, G.pisoY + 0.27, zP - 0.22 + 0.035], 0.03, 14));
+    const caminhoM = [[xAss - 0.1, y0 + 0.02, zP - 0.3 - 0.04 * i], [xParede - 0.15, y0 + 0.02, -0.3 - 0.04 * i], [xParede - 0.15, yDeck - 0.15, -0.3], [Mo.x0 - 0.05, Mo.y - 0.12, mz * 0.9]];
+    for (let k = 0; k < caminhoM.length - 1; k++) addM('lig_motor', tubo(caminhoM[k], caminhoM[k + 1], fadec ? 0.006 : 0.008, 6));
+    addM('fcu', caixa([0.14, 0.12, 0.12], [Mo.x0 - 0.12, Mo.y - 0.2, mz + (mz >= 0 ? -0.1 : 0.1)]));
+    addM('ind_motor', bola(0.03, [(Mo.x0 + Mo.x1) / 2, Mo.y + Mo.r * 0.8, mz])); addM('ind_motor', bola(0.025, [Mo.x0 - 0.05, Mo.y + Mo.r * 0.6, mz]));
+  });
+  if (fadec) { addM('ecu', caixa([0.3, 0.08, 0.24], [G.trasX + 0.3, G.pisoY + 0.75, 0.2])); addM('ecu', tubo([G.trasX + 0.3, G.pisoY + 0.79, 0.2], [Mo.x0 - 0.12, Mo.y - 0.14, zMot[0]], 0.006, 6)); }
+  addM('ind_motor', tubo([Mo.x0 - 0.05, Mo.y + Mo.r * 0.6, zMot[0]], [G.painelX - 0.2, G.painelY + 0.1, 0], 0.005, 6));
   if (CMD.PECAS.servo_rc.so.includes(CFG.id)) addM('servo_rc', tubo([G.trasX - 0.1, y0 + 0.12, 0.25], [G.trasX - 0.45, y0 + 0.12, 0.25], 0.035, 14));
 }
 montar();
@@ -367,12 +379,29 @@ function procedimentosDe(sns, kw, limite = 60) {
   }
   return out.sort((a, b) => b.pontos - a.pontos).slice(0, limite);
 }
+// Texto de descrição do manual (data modules 040/041/042) mais próximo dos códigos SNS do item
+function descricaoDe(sns) {
+  if (!INDICE || !INDICE.fichas) return null;
+  for (const p of sns) for (const m of portalModelos) {
+    const M = INDICE.modelos[m]; if (!M) continue;
+    const d = M.dms.find((x) => /-04[0-2]A-/.test(x[3]) && x[0] === p && INDICE.fichas[x[3]]);
+    if (d) return { m, d, txt: INDICE.fichas[d[3]] };
+  }
+  return null;
+}
+function htmlDescricao(sns) {
+  const r = descricaoDe(sns || []); if (!r) return '';
+  return `<details class="cartao" open><summary><b>Descrição no manual Bell</b> – ${esc(r.d[1])} <span class="dmc">(${esc(r.m)} · DMC-${esc(r.d[3])})</span></summary>
+    <div class="sub" style="white-space:pre-line;max-height:320px;overflow:auto;margin-top:6px">${esc(r.txt.slice(0, 4000))}${r.txt.length > 4000 ? '\n…' : ''}</div>
+    <a class="bt mini" href="${dmcUrl(r.m, r.d)}" target="_blank" rel="noopener">Abrir no portal Bell ›</a></details>`;
+}
 function htmlProc(lista) {
   if (!INDICE) return `<div class="cartao aviso-int"><div class="tit">Índice dos manuais não carregado</div><div class="sub">Os procedimentos oficiais vêm do arquivo interno <b>interno/indice_manuais_bell.json</b> (fora do git e do GitHub Pages por ser material proprietário da Bell). Veja a aba <b>Procedimentos</b> para gerar o arquivo.</div></div>`;
   if (!lista.length) return '<div class="sub">Nenhum procedimento encontrado para este item no índice.</div>';
   return lista.map(({ m, d, cap }) => cap
     ? `<a class="proc" href="${PORTAL}${esc(cap[4])}" target="_blank" rel="noopener"><b>${esc(cap[3])}</b><span class="sub">${esc(m)} · ${esc(cap[1])} · ${esc(cap[2] || '')}</span></a>`
-    : `<a class="proc" href="${dmcUrl(m, d)}" target="_blank" rel="noopener"><b>${esc(d[1])}</b> – ${esc(d[2])}<span class="sub">${esc(m)} · SNS ${esc(d[0])}${d[5] ? ' · ' + esc(d[5]) : ''} <span class="dmc">DMC-${esc(d[3])}</span></span></a>`).join('');
+    : `<a class="proc" href="${dmcUrl(m, d)}" target="_blank" rel="noopener"><b>${esc(d[1])}</b> – ${esc(d[2])}<span class="sub">${esc(m)} · SNS ${esc(d[0])}${d[5] ? ' · ' + esc(d[5]) : ''} <span class="dmc">DMC-${esc(d[3])}</span></span></a>` +
+      (INDICE.fichas && INDICE.fichas[d[3]] ? `<details style="margin:0 8px 6px"><summary class="sub">ver descrição</summary><div class="sub" style="white-space:pre-line;max-height:260px;overflow:auto">${esc(INDICE.fichas[d[3]].slice(0, 3000))}</div></details>` : '')).join('');
 }
 
 /* =====================================================================
@@ -387,6 +416,7 @@ function mostrarFicha(id) {
   fichaEl.innerHTML = `<div class="cartao previa"><div class="tit">${esc(i.n)} <span class="tag">${esc((i.sns || [])[0] || '')}</span></div>
     <div class="sub">${esc(i.f || i.d || '')}</div>
     ${pecas[id] ? `<div class="sub">Grupo: ${esc(NOMES_G[i.g] || i.g)}</div>` : ''}
+    ${htmlDescricao(i.sns)}
     <h3 style="margin:10px 0 4px;font-size:13px">Procedimentos no manual Bell (${portalModelos.join(', ')})</h3>${htmlProc(lista)}</div>`;
 }
 function listaPecas() {
@@ -395,15 +425,8 @@ function listaPecas() {
   return Object.entries(NOMES_G).filter(([g]) => grupos[g]).map(([g, nome]) => `<div class="grupo-tit"><i style="background:#${CORES[g].toString(16).padStart(6, '0')}"></i>${nome}</div>` +
     grupos[g].map((p) => `<div class="peca${sel === p.id ? ' ativo' : ''}" data-id="${p.id}"><span>${esc(p.info.n)}</span><small>${esc(p.info.sns[0] || '')}</small></div>`).join('')).join('');
 }
-const SNIPPET = `/* Rode no Chrome, logado em https://www.bellhelicopter.net/tp/ (F12 → Console → colar → Enter) */
-(async()=>{const g=async u=>{const r=await fetch('https://gateway.bellhelicopter.net/'+u,{credentials:'include'});return r.ok?r.json():null};
-const R={gerado:new Date().toISOString(),fonte:'https://www.bellhelicopter.net/tp/',modelos:{}};
-for(const m of ['505','407','407GXi','429','206B','206L4','230','430']){const M={manuais:[],sistemas:{},dms:[],capitulos:[]};const t=await g('toc/model/'+m);
-M.manuais=(t&&t.toc||[]).map(x=>[x.toc,x.manual]);const s=await g('toc/sns/'+m);
-if(s&&s.sns){const v=new Set();const w=(n,p)=>{for(const c of n){if(c.type==='dmc'){if(v.has(c.dmc))continue;v.add(c.dmc);M.dms.push([p[p.length-1]||'',c.title,c.subtitle,c.dmc.replace(/^DMC-/,''),c.pmc.replace(/^PMC-/,''),c.applic&&c.applic.text!=='ALL'?c.applic.text:''])}else{M.sistemas[c.id]=c.title;w(c.children||[],[...p,c.id])}}};w(s.sns,[])}
-for(const man of ['MM','MPI','MO']){if(!M.manuais.some(x=>x[0]===man))continue;const d=await g('toc/model/'+m+'/'+man);for(const mm of (d&&d.toc&&d.toc.manuals||[]))for(const p of (mm.publications||[]))for(const f of (p.files||[]))M.capitulos.push([man,p.title,p.revision,f.title,f.url])}
-R.modelos[m]=M;console.log(m,M.dms.length,M.capitulos.length)}
-const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(R)],{type:'application/json'}));a.download='indice_manuais_bell.json';a.click()})();`;
+let SNIPPET = '(carregando o código…)';
+fetch('ferramentas/indice_bell_console.js').then((r) => r.text()).then((t) => { SNIPPET = t; const ta = document.querySelector('textarea.cola'); if (ta) ta.value = t; }).catch(() => {});
 
 function render() {
   document.querySelectorAll('#abas button').forEach((b) => b.classList.toggle('ativa', b.dataset.aba === aba));
@@ -420,13 +443,14 @@ function render() {
       <div class="ctrl-sl"><label>Cíclico frente/trás</label><input type="range" id="slLon" min="-1" max="1" step="0.01" value="${est.lon}"><output id="oLon"></output></div>
       <div class="ctrl-sl"><label>Cíclico lateral</label><input type="range" id="slLat" min="-1" max="1" step="0.01" value="${est.lat}"><output id="oLat"></output></div>
       <div class="ctrl-sl"><label>Pedais</label><input type="range" id="slPed" min="-1" max="1" step="0.01" value="${est.ped}"><output id="oPed"></output></div>
-      <div class="linha"><button class="bt" id="btCentro">Centralizar</button><button class="bt" id="btGirar">${est.girar ? 'Parar rotor' : 'Girar rotor'}</button><button class="bt pri" id="btSeguir">Seguir a cadeia (coletivo)</button><button class="bt" id="btSeguirCic">Seguir (cíclico)</button><button class="bt" id="btSeguirDir">Seguir (pedais)</button></div>
+      <div class="linha"><button class="bt" id="btCentro">Centralizar</button><button class="bt" id="btGirar">${est.girar ? 'Parar rotor' : 'Girar rotor'}</button><button class="bt pri" id="btSeguir">Seguir a cadeia (coletivo)</button><button class="bt" id="btSeguirCic">Seguir (cíclico)</button><button class="bt" id="btSeguirDir">Seguir (pedais)</button><button class="bt" id="btSeguirMot">Seguir (motor)</button></div>
       <div class="cartao"><div class="tit">Procedimentos de regulagem (rigging) e fricção</div>${htmlProc(procedimentosDe(['67-11', '67-12', '67-20', '67-21', '67-10'], 'rigging|friction|operational check|regulagem', 25))}</div>`;
     for (const [k, id] of [['col', 'slCol'], ['lon', 'slLon'], ['lat', 'slLat'], ['ped', 'slPed']]) $('#' + id).oninput = (e) => { est[k] = +e.target.value; aplicar(); };
     $('#btCentro').onclick = () => { Object.assign(est, { col: 0.3, lon: 0, lat: 0, ped: 0 }); render(); aplicar(); };
     $('#btGirar').onclick = () => { est.girar = !est.girar; render(); };
     $('#btSeguir').onclick = () => seguir(['col_stick', 'col_friction', 'col_jack', 'col_tubo1', 'col_reversao', 'col_tubo2', 'col_lever', 'servo_c', 'col_bellcrank', 'swash', 'pitch_links']);
     $('#btSeguirCic').onclick = () => seguir(['cic_stick', 'cic_base', 'cic_torque', 'cic_tubo', 'mixer', 'cic_subida', 'servo_e', 'servo_d', 'cic_bellcrank', 'swash', 'pitch_links']);
+    $('#btSeguirMot').onclick = () => seguir(['manete', 'col_transdutor', 'lig_motor', 'ecu', 'fcu', 'ind_motor']);
     $('#btSeguirDir').onclick = () => seguir(['pedais', 'ped_jack', 'quadrante', 'servo_rc', 'dir_linha', 'dir_cauda', 'pcm']);
     aplicar();
   } else if (aba === 'procedimentos') {
@@ -434,7 +458,7 @@ function render() {
     const sist = {}; for (const [, v] of M) Object.assign(sist, v.sistemas);
     const caps = [...new Set(M.flatMap(([, v]) => v.dms.map((d) => (d[0] || '').slice(0, 2))))].filter(Boolean).sort();
     cont.innerHTML = INDICE ? `<div class="cartao previa"><div class="tit">Procedimentos dos manuais Bell – ${esc(portalModelos.join(' / '))}</div>
-        <div class="sub">Índice gerado em ${esc((INDICE.gerado || '').slice(0, 10))}: ${M.map(([m, v]) => `${esc(m)} ${v.dms.length ? v.dms.length + ' módulos (IETM)' : v.capitulos.length + ' capítulos (PDF)'}`).join(' · ')}. Os links abrem o portal Bell (precisa estar logado). Material proprietário: uso interno de manutenção.</div></div>
+        <div class="sub">Índice gerado em ${esc((INDICE.gerado || '').slice(0, 10))}${INDICE.fichas ? ` · ${Object.keys(INDICE.fichas).length} descrições de sistemas` : ''}: ${M.map(([m, v]) => `${esc(m)} ${v.dms.length ? v.dms.length + ' módulos (IETM)' : v.capitulos.length + ' capítulos (PDF)'}`).join(' · ')}. Os links abrem o portal Bell (precisa estar logado). Material proprietário: uso interno de manutenção.</div></div>
         <input id="busca" placeholder="Buscar (ex.: servo, swashplate, chip detector, 67-20, remove…)" value="${esc(est.busca)}">
         <div class="linha"><select id="filCap"><option value="">Todos os capítulos ATA</option>${caps.map((c) => `<option ${est.cap === c ? 'selected' : ''} value="${c}">${c} – ${esc(sist[c] || '')}</option>`).join('')}</select>
         <select id="filTipo"><option value="">Todos os tipos</option>${['inspection', 'remove', 'install', 'description', 'rigging', 'servicing', 'test', 'fault', 'repair'].map((t) => `<option ${est.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
