@@ -1,5 +1,18 @@
 # HeliSense 3D
 
+[![Abrir o HeliSense 3D](https://img.shields.io/badge/Abrir-HeliSense%203D-ff6a3d?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mattttheus.github.io/Helicoptero_Teste_RaioX_modelo429/)
+[![Manual 3D do Bell 429](https://img.shields.io/badge/Manual%203D-Bell%20429-1f2937?style=for-the-badge)](https://mattttheus.github.io/Helicoptero_Teste_RaioX_modelo429/manual.html?m=429)
+[![Motor 3D e sensores](https://img.shields.io/badge/Motor%203D-sensores-1f2937?style=for-the-badge)](https://mattttheus.github.io/Helicoptero_Teste_RaioX_modelo429/motor.html?m=429)
+
+<a href="https://mattttheus.github.io/Helicoptero_Teste_RaioX_modelo429/manual.html?m=429"><img src="assets/readme/helisense-manual-429.jpg" alt="HeliSense 3D: manual interativo do Bell 429 GlobalRanger em 3D" width="100%"></a>
+
+<a href="https://mattttheus.github.io/Helicoptero_Teste_RaioX_modelo429/motor.html?m=429"><img src="assets/readme/helisense-motor-429.jpg" alt="HeliSense 3D: motor Pratt &amp; Whitney Canada PW207D1 com o mapa de sensores" width="100%"></a>
+
+> **Por que este projeto:** sou planejador de produção de manutenção aeronáutica (inspeções programadas, componentes com
+> vida limite, eventos condicionais e conformidade com a ANAC). O HeliSense 3D leva esse planejamento para a manutenção
+> preditiva e é o projeto que levo para a pós-graduação em Engenharia Aeronáutica.
+> Autor: [Matheus Vinícius](https://mattttheus.github.io/Site_Matheus_engenharia/).
+
 **Sensores interativos para manutenção preditiva de helicópteros**, com gêmeo digital 3D: cada sensor (vibração, temperatura,
 pressão, deformação, deslocamento, aceleração e discretos como detector de limalha) tem tendência, detecção de anomalia,
 índice de saúde e tempo estimado até o alerta e o crítico; o componente afetado acende no modelo 3D. Projeto de mestrado
