@@ -1,0 +1,4 @@
+ILUMINAÇÃO REAL (HDRI)
+Coloque aqui um HDRI equiretangular chamado ambiente.hdr (2K basta). Recomendado: Poly Haven (polyhaven.com), licença CC0,
+de estúdio ou hangar (ex.: "studio_small_09", "industrial_workshop_foundry"). Reflexos e luz do 3D passam a ser os desse ambiente.
+Sem o arquivo, o sistema usa o estúdio gerado por código.

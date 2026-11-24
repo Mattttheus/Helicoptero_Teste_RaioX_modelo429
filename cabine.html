@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cabine 3D · HeliSense 3D</title>
+  <meta name="description" content="Cabine 3D interativa: manche (cíclico), coletivo, manete, pedais, interruptores, instrumentos vivos, partida do motor e teste de movimento dos comandos.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
+  <script>
+    // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
+    (function () {
+      function mostrar(m) { if (/ResizeObserver|setPointerCapture/.test(m)) return; var f = function () { var el = document.getElementById('erro'); if (!el) return; el.hidden = false; el.innerHTML = '<b>Algo falhou ao carregar esta página</b><br>' + String(m).replace(/</g, '&lt;') + '<br><small>Recarregue com Ctrl+F5 (limpa o cache). Se continuar, envie esta mensagem.</small>'; }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f(); }
+      window.addEventListener('error', function (e) { if (e.message) mostrar(e.message + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')); });
+      window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
+  <script type="importmap">
+    { "imports": {
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
+    } }
+  </script>
+  <!-- precarga -->
+  <link rel="modulepreload" href="assets/vendor/three/build/three.module.js">
+  <link rel="modulepreload" href="assets/vendor/three/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="src/aplicacao/preditiva.js?v=20261123a">
+  <link rel="modulepreload" href="src/aplicacao/prontidao_voo.js?v=20261123a">
+  <link rel="modulepreload" href="src/aplicacao/simulacao.js?v=20261123a">
+  <link rel="modulepreload" href="src/aplicacao/sistemas_aeronave.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/controladores/cabine.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/helicoptero3d.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/realismo.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/carregar.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/modelos_reais.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+</head>
+<body>
+  <div id="app">
+    <aside id="painel">
+      <header>
+        <div class="marca"><a href="index.html" class="selo" title="Voltar ao painel HeliSense 3D">MI</a>
+          <div class="marca-txt"><h1>Cabine 3D <small>· HeliSense 3D</small></h1><p id="subModelo">carregando…</p></div>
+        </div>
+        <div class="linha topo"><select id="trocaModelo" title="Trocar de modelo" aria-label="Modelo"></select></div>
+      </header>
+      <nav id="abas" class="abas6" role="tablist" aria-label="Seções da cabine">
+        <button data-aba="partida" class="ativa">Partida</button>
+        <button data-aba="teste">Teste de comandos</button>
+        <button data-aba="voo">Voo</button>
+        <button data-aba="decolagem">Decolagem</button>
+        <button data-aba="registro">Registro</button>
+        <button data-aba="ajuda">Ajuda</button>
+      </nav>
+      <div id="conteudo"></div>
+      <footer id="rodape">Cabine e dinâmica ilustrativas para treinamento. Não substitui o RFM, o manual de manutenção nem treinamento em aeronave/simulador homologado.</footer>
+    </aside>
+    <main id="vista">
+      <div id="barra">
+        <a class="botao" href="index.html">‹ Modelos</a>
+        <a class="botao" id="btManual" href="manual.html">Manual 3D</a>
+        <a class="botao" id="btMotor" href="motor.html">Motor 3D</a>
+        <a class="botao" id="btComandos" href="comandos.html">Comandos</a>
+        <button id="btPainel" title="Esconde ou mostra o painel lateral">Ocultar painel</button>
+        <button id="btRotor" class="on" title="Janela com o rotor: swashplate, passo das pás e rotor de cauda">Rotor</button>
+        <button id="btVistaPainel" title="Olhar para o painel de instrumentos">Painel</button>
+        <button id="btVistaPedestal" title="Olhar para o pedestal (interruptores)">Pedestal</button>
+        <button id="btVistaFrente" title="Olhar para fora">Frente</button>
+        <button id="btFoto" title="Imagem em alta definição (4K) da vista atual">Foto HD</button>
+      </div>
+      <div id="hudCab"></div>
+      <div id="dica" hidden></div>
+      <div id="ajuda">Arraste o manche, o coletivo e os pedais · role sobre a manete para girar · clique nos interruptores · arraste o fundo para olhar em volta</div>
+      <div id="erro" hidden></div>
+    </main>
+  </div>
+  <script src="src/dominio/frota/catalogo.js?v=20261123a"></script>
+  <script src="src/dominio/frota/comandos.js?v=20261123a"></script>
+  <script type="module" src="src/apresentacao/controladores/cabine.js?v=20261123a"></script>
+</body>
+</html>

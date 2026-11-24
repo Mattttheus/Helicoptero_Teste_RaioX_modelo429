@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Manual Interativo · Manutenção Interativa</title>
-  <meta name="description" content="Manutenção Interativa: manual de manutenção interativo 3D de cada helicóptero Bell, com inspeções, controle por horas, sensores IoT e regulamentação ANAC.">
+  <title>Manual Interativo · HeliSense 3D</title>
+  <meta name="description" content="HeliSense 3D: manual de manutenção interativo 3D de cada helicóptero Bell, com inspeções, controle por horas, sensores IoT e regulamentação ANAC.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
   <script>
     // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
@@ -14,20 +14,43 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
   <script type="importmap">
     { "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
     } }
   </script>
+  <!-- precarga -->
+  <link rel="modulepreload" href="assets/vendor/three/build/three.module.js">
+  <link rel="modulepreload" href="assets/vendor/three/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="src/aplicacao/busca_texto.js?v=20261123a">
+  <link rel="modulepreload" href="src/aplicacao/preditiva.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/controladores/manual.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/util.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/chicotes.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/estilo_ipc.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/helicoptero3d.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/malha_fuselagem.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/mapa_sensores.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/movimento_ipc.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/realismo.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/atlas_visor.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/galeria.js?v=20261123a">
+  <link rel="modulepreload" href="src/dominio/documentacao/atlas.js?v=20261123a">
+  <link rel="modulepreload" href="src/dominio/sensores/catalogo_sensores.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/carregar.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/modelos_reais.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </head>
 <body>
   <div id="app">
     <aside id="painel">
       <header>
-        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel Manutenção Interativa">…</a>
-          <div class="marca-txt"><h1>Manual Interativo <small>· Manutenção Interativa</small></h1><p id="subModelo">carregando…</p></div>
+        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel HeliSense 3D">…</a>
+          <div class="marca-txt"><h1>Manual Interativo <small>· HeliSense 3D</small></h1><p id="subModelo">carregando…</p></div>
         </div>
         <div class="linha topo"><select id="trocaModelo" title="Trocar de modelo" aria-label="Modelo"></select></div>
         <div id="buscaCx"><input type="search" id="busca" placeholder="Buscar peça, tarefa, sensor, P/N, RBAC…  ( / )" autocomplete="off"></div>
@@ -52,12 +75,19 @@
       <div id="barra">
         <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
         <a class="botao" id="btMotor" href="motor.html" title="Motor 3D editável com mapa de sensores e testes">Motor 3D</a>
+        <a class="botao" id="btComandos" href="comandos.html" title="Comandos de voo, painel 3D e procedimentos dos manuais">Comandos</a>
         <button id="btVoo" title="Simula um voo completo no 3D com os sensores acompanhando cada fase">Simular voo</button>
         <button id="btPainel" title="Esconde ou mostra o painel do manual">Ocultar painel</button>
         <button id="btSaude" title="Pinta os componentes pela condição lida nos sensores">Saúde</button>
+        <button id="btReal" hidden title="Modelo 3D real da aeronave (arquivo .glb)">Modelo real</button>
         <button id="btRaiox" title="Deixa o revestimento transparente">Raio-X</button>
+        <button id="btIPC" title="Figura de catálogo (IPC): desenho técnico com contorno, peças selecionadas em ciano e chamadas numeradas">Figura IPC</button>
+        <button id="btEletrica" title="Malha elétrica e eletrônica da fuselagem: barramentos, cargas, sensores, dados e antenas">Elétrica</button>
         <button id="btMapaSens" title="Mapa de onde colocar os sensores: um número em cada ponto, ligado à lista da aba Sensores">Mapa de sensores</button>
         <button id="btGirar" title="Liga/desliga a rotação dos rotores">Girar rotores</button>
+        <button id="btFotos" hidden title="Fotos realistas renderizadas no Blender">Fotos reais</button>
+        <button id="btSketchfab" hidden title="Modelo 3D de alta qualidade no visualizador do Sketchfab (precisa de internet)">Sketchfab</button>
+        <button id="btFoto" title="Salva uma imagem em alta definição (4K) da vista atual">Foto HD</button>
         <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
       </div>
       <div id="selbar" hidden></div>
@@ -69,8 +99,8 @@
     </main>
   </div>
 
-  <script src="modelos/catalogo.js?v=20261116b"></script>
-  <script type="module" src="app.js?v=20261116b"></script>
+  <script src="src/dominio/frota/catalogo.js?v=20261123a"></script>
+  <script type="module" src="src/apresentacao/controladores/manual.js?v=20261123a"></script>
   <script>
     // Aviso amigável se abrir direto do disco (módulos exigem servidor: WAMP, GitHub Pages etc.)
     if (location.protocol === 'file:') {

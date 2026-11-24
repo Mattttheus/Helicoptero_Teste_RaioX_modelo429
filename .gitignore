@@ -4,3 +4,32 @@ api/dados/
 # manuais oficiais em PDF (material proprietário: não versionar)
 manuais/*
 !manuais/LEIA-ME.txt
+
+# dados extraídos dos manuais Bell (material proprietário: só na rede local / WAMP, nunca em repositório online)
+dados/*
+!dados/LEIA-ME.txt
+interno/
+figuras_*/
+*.zip
+textos_*.json
+indice_manuais_bell*.json
+
+# arquivos separados pela reorganização (conferir e apagar)
+_para_excluir/
+
+# fotos e documentos de referência baixados da internet (direitos de terceiros)
+docs/referencias/
+# modelos 3D e HDRI de terceiros (licença própria)
+assets/hdri/*.hdr
+
+# modelos de terceiros com licença Sketchfab Standard (sem redistribuição): só local
+assets/modelos3d/heli_206_real.glb
+assets/modelos3d/heli_222x_real.glb
+# pacotes de origem e de atualização, modelos exportados pelas ferramentas (pesados, só local)
+ferramentas/pacotes/
+assets/modelos3d/gerados/
+assets/fotos/_descartadas/
+assets/renders/*log*.txt
+ferramentas/reorganizar_log.txt
+# arquivo de outro projeto que ficou na pasta
+/LEIA-ME.txt

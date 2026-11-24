@@ -1,7 +1,15 @@
-# Manutenção Interativa
+# HeliSense 3D
+
+**Sensores interativos para manutenção preditiva de helicópteros**, com gêmeo digital 3D: cada sensor (vibração, temperatura,
+pressão, deformação, deslocamento, aceleração e discretos como detector de limalha) tem tendência, detecção de anomalia,
+índice de saúde e tempo estimado até o alerta e o crítico; o componente afetado acende no modelo 3D. Projeto de mestrado
+(Engenharia Aeronáutica – ITA).
+
+Base técnica (manuais interativos 3D por modelo):
 
 Manuais de manutenção interativos 3D de helicópteros Bell, um por modelo, com o mesmo padrão de navegação, dados e
-visual: **Bell 505 Jet Ranger X**, **Bell 429 GlobalRanger**, **Bell 206 JetRanger** e **Bell 407 / 407GXi**.
+visual: **Bell 505 Jet Ranger X**, **Bell 429 GlobalRanger**, **Bell 206 JetRanger**, **Bell 407 / 407GXi**,
+**Bell 206L-4 LongRanger IV**, **Bell 230** e **Bell 430**.
 Cada modelo tem também o **motor em 3D editável**, com **mapa de instalação dos sensores** e **testes em modelo**
 (partida/ignição, perfil de voo, estresse de componentes e teste de sensores).
 
@@ -15,6 +23,9 @@ Cada modelo tem também o **motor em 3D editável**, com **mapa de instalação 
 | `index.html` | Painel de entrada: escolha do modelo, vitrine 3D e tabela de motorização |
 | `manual.html?m=<id>` | Manual interativo do helicóptero (`505`, `429`, `206`, `407`) |
 | `motor.html?m=<id>` | Motor 3D do modelo: peças, sensores, testes, manutenção e edição (`&s=<sensor>` abre direto num sensor) |
+| `comandos.html?m=<id>` | **Comandos de voo e painel 3D**: cadeia de comando (cíclico, coletivo, pedais → jackshafts, tubos, bellcranks, mixer → servos → swashplate / rotor de cauda), controle do motor (manete, ligação, FCU/HMU, ECU/FADEC, indicação), comandos duplos, painel de instrumentos por tipo de aviônica (G1000H NXi, BasiX-Pro, EFIS ou analógico), pedestal, **teste de movimento** e **seguir a cadeia**; abas **Peças** (estrutura ATA → conjunto → PN) e **Procedimentos** (leitura digital) com os dados locais dos manuais Bell |
+| `cabine.html?m=<id>` | **Cabine 3D**: manche, coletivo com manete, pedais e interruptores interativos; telas e instrumentos vivos; partida do motor com checklist; sistema elétrico (bateria, gerador, barra, disjuntores); ar-condicionado e temperatura da cabine; rotor (swashplate, passo, track, vibração); teste de movimento dos comandos; treino de diagnóstico de panes |
+| `atlas.html` | **Atlas visual** (120 fichas em alta definição) com busca no texto e visor com zoom; as fichas também aparecem na ficha de cada peça do motor e do helicóptero, com atalhos para PN e procedimentos |
 | `motores.html` | **Tabela dos motores 3D com os sensores de cada motor, por modelo**: resumo dos 4 motores e matriz grandeza × modelo; passar o mouse num sensor marca a posição dele no motor 3D, clicar abre o motor do modelo naquele sensor; exporta CSV |
 
 Endereços antigos do manual do 429 (ex.: `/#sensores`) são redirecionados para `manual.html?m=429`.
@@ -42,10 +53,31 @@ Endereços antigos do manual do 429 (ex.: `/#sensores`) são redirecionados para
 | Bell 505 | **Prévia**: EASA TCDS E.031 (motor), intervalos e tarefas confirmados no guia público de manutenção do 505 (PAC a cada 25 h, pillow block, tail damper…); o restante marcado como ilustrativo |
 | Bell 206 | **Prévia**: NZ CAA TAR 11/21B/22 (motor 250 Série II) e limites de TOT de fontes secundárias; tarefas ilustrativas |
 | Bell 407 | **Prévia**: EASA TCDS IM.E.109 (motor 250-C47B / C47E/4); tarefas ilustrativas |
+| Bell 206L-4 | **Prévia**: EASA TCDS IM.E.109 (motor 250-C30P); tarefas ilustrativas |
+| Bell 230 | **Prévia**: EASA TCDS IM.E.109 (2× 250-C30G/2, limites OEI); tarefas ilustrativas |
+| Bell 430 | **Prévia**: EASA TCDS IM.E.109 (2× 250-C40B, controle eletrônico, limites OEI); tarefas ilustrativas |
 
 Para tornar os manuais do 505, 206 e 407 fiéis ao fabricante, coloque os PDFs oficiais em `manuais/<id>/`
 (pasta ignorada pelo git – material proprietário). As tarefas, intervalos e limites extraídos vão para
-`modelos/<id>/dados.js` (e `motor.js`). As tarefas da prévia têm número local (`505.63.001`), não o número oficial.
+`src/dominio/frota/aeronaves/<id>/dados.js` (e `motor.js`). As tarefas da prévia têm número local (`505.63.001`), não o número oficial.
+
+## Dados dos manuais Bell por aeronave (somente rede local)
+
+Os dados extraídos do portal Bell ficam em `dados/<modelo>/` (505, 407, 407GXi, 429, 206B, 206L4, 230, 430), **somente
+na rede local / WAMP** – material proprietário, nunca em repositório online:
+
+- `indice.json` – procedimentos, descrições de sistemas, peças do catálogo (IPC; IPB por figura nos manuais por capítulo), figuras;
+- `textos.json` – texto completo de cada procedimento ou página;
+- `figuras/` – figuras SVG (IETM) e PNG (páginas de figura).
+
+Em `comandos.html`:
+- **Procedimentos** – busca por título, código, PN ou texto completo; cada procedimento abre em **leitura digital**
+  (passos com checklist que fica salvo no navegador, avisos WARNING/CAUTION/NOTE destacados, torques, ferramentas T-xxxxxx e
+  PN com link para a busca), com as figuras locais (visor com zoom) e o botão **◎ 3D**;
+- **Peças** – estrutura de peças: capítulo ATA → conjunto (figura do catálogo) → itens com PN, com a região destacada no 3D.
+
+Para atualizar: `ferramentas/indice_bell_console.js` (Snippet do Chrome logado no portal) gera um `dados_<modelo>.zip` por
+aeronave; extraia em `dados/<modelo>/`. Instruções em `dados/LEIA-ME.txt`.
 
 ## Motor 3D (cada modelo)
 
@@ -55,6 +87,9 @@ Para tornar os manuais do 505, 206 e 407 fiéis ao fabricante, coloque os PDFs o
 | 429 | P&WC PW207D1 (2 instalados) | caixa de redução dianteira, entrada radial, compressor centrífugo, câmara anular de fluxo reverso, CT e PT de 1 estágio |
 | 206 | Rolls-Royce 250-C20J | fluxo reverso: compressor 6 axiais + 1 centrífugo, 2 tubos de descarga, câmara única traseira, turbinas de 2+2 estágios, 2 escapes |
 | 407 | Rolls-Royce M250-C47B / C47E/4 | fluxo reverso: compressor centrífugo, tubo de descarga único, turbinas de 2+2 estágios, escape único, FADEC |
+| 206L4 | Rolls-Royce 250-C30P | Série IV: compressor centrífugo, 2 tubos de descarga, turbinas de 2+2 estágios, 2 escapes, hidromecânico |
+| 230 | Rolls-Royce 250-C30G/2 (2 instalados) | Série IV hidromecânico; limites OEI |
+| 430 | Rolls-Royce 250-C40B (2 instalados) | Série IV com controle eletrônico de 1 canal e reserva manual; limites OEI |
 
 Dimensões, peso e limites (temperatura dos gases, Ng, Np, torque, óleo) vêm das fichas EASA/TCDS citadas na aba **Motor**.
 
@@ -78,7 +113,7 @@ As páginas carregam os arquivos com `?v=<versão>` para o navegador não reapro
 Depois de alterar qualquer arquivo, atualize a versão antes de publicar:
 
 ```bash
-python ferramentas/versionar.py . 20261116a
+python ferramentas/versionar.py . 20261120a
 ```
 
 Se algo falhar ao carregar, a página mostra a mensagem de erro na tela (recarregue com Ctrl+F5).
@@ -106,36 +141,38 @@ No manual, aba **Sensores → Sensores reais**: a página lê `api/telemetria.ph
 curl -X POST -H "Content-Type: application/json" -d '{"leituras":{"temp_trans":112.5,"chip_trgb":1}}' http://192.168.1.51/api/telemetria.php
 ```
 
-Os ids são os de `sensores` em `modelos/<id>/`. Exemplo para ESP32 em `exemplos/esp32_telemetria.ino`. Para exigir chave,
+Os ids são os de `sensores` em `src/dominio/frota/aeronaves/<id>/`. Exemplo para ESP32 em `exemplos/esp32_telemetria.ino`. Para exigir chave,
 preencha `CHAVE` em `api/telemetria.php` e mande o cabeçalho `X-Chave`.
 
-## Arquivos
+## Estrutura de pastas (Clean Architecture · DDD · MVC)
 
-| Arquivo | Conteúdo |
-|---|---|
-| `index.html` | Painel Manutenção Interativa |
-| `manual.html` · `app.js` | Manual interativo (genérico, escolhe o modelo por `?m=`) |
-| `motor.html` · `motor.js` | Página do motor 3D |
-| `motores.html` · `motores.js` | Tabela dos motores e sensores por modelo, com visualizador 3D |
-| `modelo.js` | Helicópteros 3D procedurais (429 + formas do 505, 206 e 407) |
-| `motor3d.js` | Motores 3D procedurais (arquiteturas M250, PW200 e Arrius) |
-| `simulacao.js` | Simulação de partida, voo, estresse e teste de sensores |
-| `mapa.js` | Mapa numerado dos sensores no 3D e folha de instalação para imprimir |
-| `carregar.js` | Lê o modelo da URL e carrega os dados |
-| `style.css` | Aparência |
-| `modelos/catalogo.js` | Lista dos modelos (nome, motor, cor, arquivos) |
-| `modelos/429/` | Dados do 429 (`dados.js`, `anac.js`, `sensores.js`) e `motor.js` (PW207D1) |
-| `modelos/monomotor.js` | Base comum dos monomotores (componentes, inspeções, eventos, ANAC, sensores) |
-| `modelos/505/`, `206/`, `407/` | `dados.js` (programa de manutenção do modelo) e `motor.js` (motor, limites, posições dos sensores) |
-| `modelos/motor_comum.js` | Peças, sensores padrão (instalação e teste) e tarefas comuns dos motores |
-| `manuais/` | PDFs oficiais de cada modelo (não versionados) |
-| `api/telemetria.php` · `exemplos/` | Telemetria real (WAMP) e exemplo ESP32 |
+Detalhes, regras e testes em `docs/ARQUITETURA.md`.
 
-### Acrescentar um modelo (ex.: Bell 412)
+```
+Bell 429/
+├── index · manual · motor · cabine · comandos · motores · atlas · testes (.html)   ← páginas
+├── assets/  css/ · texturas/ (PBR pré-processadas) · modelos3d/ (.glb reais) · hdri/
+├── src/
+│   ├── dominio/                       MODEL – regras e dados (DDD)
+│   │   ├── frota/                     catálogo, aeronaves/<id>/, monomotor, comandos e painéis
+│   │   ├── motores/                   peças, sensores e tarefas comuns dos motores
+│   │   └── documentacao/              atlas (fichas ↔ peças ↔ PN/procedimentos)
+│   ├── aplicacao/                     MODEL – simulação do motor e sistemas da aeronave (cabine)
+│   ├── infraestrutura/                carga de dados, cache, modelos .glb
+│   └── apresentacao/
+│       ├── visoes/                    VIEW – 3D (helicóptero, motor, fluxo, chicotes, realismo) e visor do atlas
+│       └── controladores/             CONTROLLER – um por página
+├── testes/                            casos.js (domínio + aplicação), navegador.js, rodar_node.mjs
+├── dados/ · manuais/ · api/           dados locais (não versionados) e telemetria
+├── docs/ · ferramentas/ · exemplos/ · demo/
+```
 
-1. `modelos/412/dados.js` (formato do `window.HELI`) e `modelos/412/motor.js` (`MONTAR_MOTOR({...})`).
-2. Forma 3D em `FORMAS` no `modelo.js` (ou um construtor próprio, como o do 429) e, se preciso, um molde em `motor3d.js`.
-3. Entrada em `modelos/catalogo.js`.
+### Acrescentar um modelo (ex.: Bell 412 – não consta na conta Bell da Helipark)
+
+1. `src/dominio/frota/aeronaves/412/dados.js` (formato do `window.HELI`) e `src/dominio/frota/aeronaves/412/motor.js` (`MONTAR_MOTOR({...})`).
+2. Forma 3D em `FORMAS` no `src/apresentacao/visoes/3d/helicoptero3d.js` (ou um construtor próprio, como o do 429) e, se preciso, um molde em `src/apresentacao/visoes/3d/motor3d.js`.
+3. Configuração de comandos/painel em `src/dominio/frota/comandos.js` (`modelos['<id>']`).
+4. Entrada em `src/dominio/frota/catalogo.js`. Bimotores: `motores: [z1, z2]` na forma 3D (ver 230 e 430 em `helicoptero3d.js`).
 
 ## Fontes públicas usadas
 

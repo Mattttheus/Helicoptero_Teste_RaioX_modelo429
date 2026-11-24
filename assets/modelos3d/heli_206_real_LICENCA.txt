@@ -1,0 +1,5 @@
+heli_206_real.glb
+Origem: "Bell 206 Jet Ranger" por helijah – https://sketchfab.com/3d-models/76b3a340e3d34517a26c2e8142b2867e
+Licença: Sketchfab Standard (Free) – uso permitido em projetos próprios; o arquivo NÃO pode ser redistribuído.
+Uso no HeliSense 3D: somente local (WAMP), projeto de mestrado ITA. Não publicar o .glb online nem anexá-lo à dissertação.
+Conversão: Blender (ferramentas/blender_converter.py) – rotor principal identificado pelo material "mainrotor".

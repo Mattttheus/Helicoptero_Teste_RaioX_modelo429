@@ -1,0 +1,6 @@
+Helicóptero	Motorização	Configuração	Potência Aproximada
+Bell 407 / 407GXi	Rolls-Royce M250-C47B / M250-C47E/4	1 turboeixo (monomotor)	813 a 862 SHP
+Bell 206 JetRanger	Rolls-Royce / Allison 250-C20J	1 turboeixo (monomotor)	~420 SHP
+Bell 505 Jet Ranger X	Safran Arrius 2R (com duplo FADEC)	1 turboeixo (monomotor)	~505 SHP
+Bell 429 GlobalRanger	Pratt & Whitney Canada PW207D1	2 turboeixos (bimotor)	~625 SHP por motor
+Bell 412	Pratt & Whitney Canada PT6T-3D / PT6T-9 Twin-Pac	2 turboeixos anexos	~1.800 SHP (combinados)

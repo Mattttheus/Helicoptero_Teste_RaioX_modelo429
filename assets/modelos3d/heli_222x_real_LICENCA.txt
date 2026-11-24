@@ -1,0 +1,3 @@
+heli_222x_real.glb (não usado por padrão: é a versão militar 222X; o 230/430 seguem com o Bell 222 civil do FlightGear)
+Origem: "Bell 222 X" por helijah – https://sketchfab.com/3d-models/65e868d0d8934ef999d870471e4358e3
+Licença: Sketchfab Standard (Free) – uso em projetos próprios; sem redistribuição do arquivo. Uso só local.

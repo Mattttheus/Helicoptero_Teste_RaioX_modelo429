@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Manutenção Interativa</title>
-  <meta name="description" content="Manutenção Interativa: manuais de manutenção interativos 3D dos helicópteros Bell 505, 429, 206 e 407, com motores 3D editáveis, mapa de sensores e testes de partida, voo e estresse.">
+  <title>HeliSense 3D</title>
+  <meta name="description" content="HeliSense 3D: manuais de manutenção interativos 3D dos helicópteros Bell 505, 429, 206 e 407, com motores 3D editáveis, mapa de sensores e testes de partida, voo e estresse.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
   <script>
     // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
@@ -14,7 +14,7 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
   <script>
     // Endereços antigos do manual do 429 (ex.: /#sensores) continuam funcionando
     (function () {
@@ -24,22 +24,31 @@
   </script>
   <script type="importmap">
     { "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
     } }
   </script>
+  <!-- precarga -->
+  <link rel="modulepreload" href="assets/vendor/three/build/three.module.js">
+  <link rel="modulepreload" href="assets/vendor/three/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/helicoptero3d.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/realismo.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/carregar.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </head>
 <body class="pagina-painel">
   <div class="painel-ini">
     <section class="lado">
       <div class="marca-grande"><span class="selo">MI</span>
-        <div><h1>Manutenção Interativa</h1><p>Manual interativo 3D de cada modelo · motores 3D editáveis com mapa de sensores · testes de partida, voo e estresse</p></div>
+        <div><h1>HeliSense 3D</h1><p>Sensores interativos para manutenção preditiva de helicópteros · gêmeo digital 3D com mapa de saúde · tendência, anomalia e tempo estimado até o alerta</p></div>
       </div>
       <div class="modelos" id="modelos"></div>
       <div>
         <h3>Motores 3D e sensores por modelo</h3>
         <div id="motoresPainel"><p class="nota">Carregando os motores…</p></div>
-        <div class="linha"><a class="bt pri" href="motores.html">Abrir a tabela completa de motores e sensores ›</a></div>
+        <div class="linha"><a class="bt pri" href="motores.html">Abrir a tabela completa de motores e sensores ›</a> <a class="bt" href="atlas.html">Atlas visual (120 fichas em HD) ›</a></div>
       </div>
       <div>
         <h3>Motorização de referência</h3>
@@ -49,10 +58,13 @@
           <tr><td>Bell 206 JetRanger</td><td>Rolls-Royce / Allison 250-C20J</td><td>1 turboeixo (monomotor)</td><td>~420 SHP</td></tr>
           <tr><td>Bell 505 Jet Ranger X</td><td>Safran Arrius 2R (duplo FADEC)</td><td>1 turboeixo (monomotor)</td><td>~505 SHP</td></tr>
           <tr><td>Bell 429 GlobalRanger</td><td>Pratt &amp; Whitney Canada PW207D1</td><td>2 turboeixos (bimotor)</td><td>~625 SHP por motor</td></tr>
-          <tr class="nota"><td>Bell 412</td><td>P&amp;WC PT6T-3D / PT6T-9 Twin-Pac</td><td>2 turboeixos acoplados</td><td>~1.800 SHP (fora do escopo atual)</td></tr>
+          <tr><td>Bell 206L-4 LongRanger IV</td><td>Rolls-Royce 250-C30P</td><td>1 turboeixo (monomotor)</td><td>485 kW (~650 SHP) decolagem</td></tr>
+          <tr><td>Bell 230</td><td>2× Rolls-Royce 250-C30G/2</td><td>2 turboeixos (bimotor)</td><td>485 kW por motor (decolagem)</td></tr>
+          <tr><td>Bell 430</td><td>2× Rolls-Royce 250-C40B (controle eletrônico)</td><td>2 turboeixos (bimotor)</td><td>533 kW por motor (decolagem)</td></tr>
+          <tr class="nota"><td>Bell 412</td><td>P&amp;WC PT6T-3D / PT6T-9 Twin-Pac</td><td>2 turboeixos acoplados</td><td>~1.800 SHP (não consta na conta Bell da Helipark)</td></tr>
         </table>
       </div>
-      <p class="nota">Material de demonstração e treinamento. Os modelos 3D são ilustrativos. O Bell 429 usa dados do BHT-429-MPI; os demais estão como <b>prévia</b> (fontes públicas e fichas EASA dos motores) até a incorporação dos manuais oficiais colocados na pasta <b>manuais/</b>. Nada aqui substitui os manuais do fabricante nem os RBAC.</p>
+      <p class="nota">Material de demonstração e treinamento. Os modelos 3D são ilustrativos. O Bell 429 usa dados do BHT-429-MPI; os demais estão como <b>prévia</b> (fontes públicas e fichas EASA dos motores) até a incorporação dos manuais oficiais colocados na pasta <b>manuais/</b>. Os procedimentos oficiais de cada modelo (índice com link para o portal Bell) ficam na cópia interna, pasta <b>interno/</b>. Nada aqui substitui os manuais do fabricante nem os RBAC.</p>
     </section>
     <section class="vitrine" id="vitrine">
       <div class="legenda-vit"><b id="vitNome">—</b><span id="vitInfo"></span></div>
@@ -60,17 +72,18 @@
   </div>
   <div id="erro" hidden></div>
 
-  <script src="modelos/catalogo.js?v=20261116b"></script>
+  <script src="src/dominio/frota/catalogo.js?v=20261123a"></script>
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { construirHelicoptero } from './modelo.js?v=20261116b';
+    import { prepararCena, realcarHelicoptero } from './src/apresentacao/visoes/3d/realismo.js?v=20261123a';
+    import { construirHelicoptero } from './src/apresentacao/visoes/3d/helicoptero3d.js?v=20261123a';
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const CAT = window.CATALOGO;
     document.getElementById('modelos').innerHTML = CAT.map((c) => `<article class="modelo" data-id="${c.id}" style="--cor:${c.cor}">
       <h2>${esc(c.nome)}</h2><div class="mot">${esc(c.motor)}</div>
       <dl><dt>Configuração</dt><dd>${esc(c.config)}</dd><dt>Potência</dt><dd>${esc(c.potencia)}</dd><dt>Controle</dt><dd>${esc(c.fadec)}</dd><dt>Rotor</dt><dd>${esc(c.rotor)}</dd></dl>
-      <div class="acoes"><a class="bt pri" href="manual.html?m=${c.id}">Manual 3D</a><a class="bt" href="motor.html?m=${c.id}">Motor 3D</a></div>
+      <div class="acoes"><a class="bt pri" href="manual.html?m=${c.id}">Manual 3D</a><a class="bt" href="motor.html?m=${c.id}">Motor 3D</a><a class="bt" href="cabine.html?m=${c.id}">Cabine 3D</a><a class="bt" href="comandos.html?m=${c.id}">Comandos e painel</a><a class="bt" href="comandos.html?m=${c.id}#procedimentos">Procedimentos</a></div>
       <div class="base">${esc(c.base)}</div></article>`).join('');
 
     // Vitrine 3D: mostra o modelo sob o mouse girando lentamente
@@ -82,11 +95,12 @@
     cena.add(new THREE.HemisphereLight(0xdfe9ff, 0x2a2f38, 1.15));
     const sol = new THREE.DirectionalLight(0xffffff, 1.5); sol.position.set(6, 12, 8); cena.add(sol);
     const grade = new THREE.GridHelper(30, 30, 0x2b3646, 0x1a222e); cena.add(grade);
+    prepararCena(renderer, cena, { sombras: false });
     let atual = null, idAtual = null;
     function mostrar(id) {
       if (id === idAtual) return; idAtual = id;
       if (atual) { cena.remove(atual.raiz); atual.raiz.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
-      atual = construirHelicoptero(id); cena.add(atual.raiz);
+      atual = construirHelicoptero(id); cena.add(atual.raiz); realcarHelicoptero(atual);
       const c = CAT.find((x) => x.id === id);
       camera.position.set(9, 4.8, 11); ctl.target.set(-1.8, 1.6, 0);
       document.getElementById('vitNome').textContent = c.nome;
@@ -98,9 +112,9 @@
     function ajustar() { const w = vit.clientWidth, h = vit.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     new ResizeObserver(ajustar).observe(vit); ajustar();
     mostrar(CAT[0].id);
-    // Tabela resumida dos motores e dos seus sensores (dados de modelos/<id>/motor.js)
-    import('./carregar.js?v=20261116b').then(async ({ carregarScripts }) => {
-      await carregarScripts(['modelos/motor_comum.js']);
+    // Tabela resumida dos motores e dos seus sensores (dados de src/dominio/frota/aeronaves/<id>/motor.js)
+    import('./src/infraestrutura/carregar.js?v=20261123a').then(async ({ carregarScripts }) => {
+      await carregarScripts(['src/dominio/motores/motor_comum.js']);
       const MOT = {};
       for (const c of CAT) { await carregarScripts([c.motorArq]); MOT[c.id] = window.MOTOR; }
       const grupos = [['Temperatura dos gases', (s) => s.var === 'temp'], ['Ng/N1', (s) => s.var === 'ng' && s.id !== 'sangria'], ['Np/N2', (s) => s.var === 'np'], ['Torque', (s) => s.var === 'tq'],

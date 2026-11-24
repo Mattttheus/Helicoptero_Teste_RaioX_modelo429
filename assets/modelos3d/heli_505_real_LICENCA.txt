@@ -1,0 +1,7 @@
+heli_505_real.glb – Bell 505 ("HW XYZ School Detailing")
+Autor: Barmeny4_Yakov – Sketchfab
+Fonte: https://sketchfab.com/3d-models/none-ae303862cd264c67bbc358fbd62afa16
+Licença: Creative Commons Atribuição 4.0 Internacional (CC BY 4.0) – https://creativecommons.org/licenses/by/4.0/
+Alterações (HeliSense 3D, 21/11/2026): convertido de FBX para GLB no Blender (ferramentas/blender_converter.py); peças do
+rotor principal e do rotor de cauda nomeadas pela geometria para o rotor animado do sistema se encaixar no mastro.
+Geometria e materiais do autor sem alterações. Uso: projeto acadêmico (mestrado – ITA), rede local.

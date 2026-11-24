@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comandos e painel 3D · HeliSense 3D</title>
+  <meta name="description" content="HeliSense 3D: comandos de voo (cíclico, coletivo, pedais, servos e swashplate) e painel de instrumentos em 3D de cada helicóptero Bell, com teste de movimento e procedimentos dos manuais.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
+  <script>
+    (function () {
+      function mostrar(m) { if (/ResizeObserver|setPointerCapture/.test(m)) return; var f = function () { var el = document.getElementById('erro'); if (!el) return; el.hidden = false; el.innerHTML = '<b>Algo falhou ao carregar esta página</b><br>' + String(m).replace(/</g, '&lt;') + '<br><small>Recarregue com Ctrl+F5 (limpa o cache). Se continuar, envie esta mensagem.</small>'; }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f(); }
+      window.addEventListener('error', function (e) { if (e.message) mostrar(e.message + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')); });
+      window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
+    })();
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
+  <script>
+    // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
+    (function () {
+      function mostrar(m) { if (/ResizeObserver|setPointerCapture/.test(m)) return; var f = function () { var el = document.getElementById('erro'); if (!el) return; el.hidden = false; el.innerHTML = '<b>Algo falhou ao carregar esta página</b><br>' + String(m).replace(/</g, '&lt;') + '<br><small>Recarregue com Ctrl+F5 (limpa o cache). Se continuar, envie esta mensagem.</small>'; }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f(); }
+      window.addEventListener('error', function (e) { if (e.message) mostrar(e.message + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')); });
+      window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
+  <style>
+    .grupo-tit { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; font-weight: 700; }
+    .grupo-tit i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+    .peca { display: flex; justify-content: space-between; gap: 8px; padding: 6px 9px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+    .peca:hover { border-color: var(--borda); } .peca.ativo { border-color: var(--acento); background: #2a1e12; }
+    .peca small { color: var(--suave); font: 11px ui-monospace, Consolas, monospace; white-space: nowrap; }
+    .proc { display: block; padding: 6px 8px; border-radius: 8px; text-decoration: none; color: inherit; border: 1px solid transparent; }
+    .proc:hover { border-color: var(--acento); }
+    .proc b { font-weight: 600; } .proc .sub { display: block; font-size: 11px; color: var(--suave); }
+    .proc .dmc { font: 10px ui-monospace, Consolas, monospace; color: var(--azul); }
+    .ctrl-sl { display: grid; grid-template-columns: 120px 1fr 52px; gap: 8px; align-items: center; margin: 6px 0; }
+    .ctrl-sl input { width: 100%; accent-color: var(--acento); }
+    .ctrl-sl output { font: 12px ui-monospace, Consolas, monospace; text-align: right; }
+    #leituras { position: absolute; left: 12px; bottom: 44px; z-index: 3; background: #121821cc; border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; font: 12px ui-monospace, Consolas, monospace; backdrop-filter: blur(4px); }
+    .aviso-int { border-color: var(--alerta); }
+    table.ipc { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 6px 0; }
+    table.ipc th, table.ipc td { border-bottom: 1px solid var(--borda); padding: 3px 5px; text-align: left; vertical-align: top; }
+    table.ipc td.pn { font: 11px ui-monospace, Consolas, monospace; color: var(--azul); white-space: nowrap; }
+    .figs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+    .fig { display: flex; flex-direction: column; width: 118px; text-decoration: none; color: var(--suave); font-size: 10.5px; border: 1px solid var(--borda); border-radius: 8px; padding: 4px; background: #fff1; }
+    .fig img { width: 100%; height: 90px; object-fit: contain; background: #fff; border-radius: 5px; margin-bottom: 3px; }
+    .fig:hover { border-color: var(--acento); }
+    .proc-linha { display: flex; gap: 6px; align-items: flex-start; } .proc-linha .proc { flex: 1; min-width: 0; }
+    .ver3d { flex: none; margin-top: 6px; }
+    #cartao3d { position: absolute; left: 12px; bottom: 44px; z-index: 4; width: min(380px, calc(100% - 24px)); max-height: 46%; overflow: auto;
+      background: #121821ee; border: 1px solid var(--acento); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(6px); box-shadow: 0 8px 30px #0008; }
+    #cartao3d .tit { font-weight: 700; margin-right: 22px; } #cartao3d .txt { white-space: pre-line; margin-top: 6px; max-height: 110px; overflow: auto; }
+    #cartao3d .fig { width: 92px; } #cartao3d .fig img { height: 64px; }
+    #cartao3d .fechar { position: absolute; right: 8px; top: 6px; background: none; border: 0; color: var(--suave); font-size: 15px; cursor: pointer; }
+    #leituras { bottom: auto; top: 96px; }
+    .leitura p { margin: 6px 0; line-height: 1.45; } .leitura .tab { font: 12px ui-monospace, Consolas, monospace; white-space: pre-wrap; border-bottom: 1px dashed var(--borda); padding: 2px 0; }
+    .leitura .passo { display: grid; grid-template-columns: 20px auto 1fr; gap: 6px; align-items: start; padding: 5px 6px; border-radius: 8px; margin: 3px 0; background: #ffffff08; cursor: pointer; line-height: 1.4; }
+    .leitura .passo:has(input:checked) { opacity: .55; text-decoration: line-through; }
+    .leitura .aviso { border-left: 4px solid; padding: 6px 10px; margin: 8px 0; border-radius: 6px; } .aviso.warn { border-color: #e05252; background: #e0525218; } .aviso.caut { border-color: #f2c14e; background: #f2c14e18; } .aviso.nota { border-color: var(--azul); background: #4f93e018; }
+    .torque { background: #f2c14e33; color: #ffd27a; border-radius: 4px; padding: 0 3px; font-weight: 600; } .ferr { background: #4fd1c533; color: #8ff0e6; border-radius: 4px; padding: 0 3px; }
+    .pnlink { background: none; border: 0; border-bottom: 1px dotted var(--azul); color: var(--azul); font: inherit; padding: 0; cursor: pointer; }
+    .fig img.sem { display: none; }
+    #leitor, #visor { position: fixed; inset: 0; z-index: 50; background: #05080ccc; display: flex; align-items: center; justify-content: center; padding: 18px; }
+    #leitor[hidden], #visor[hidden] { display: none; }
+    #leitor .caixa { width: min(1100px, 100%); max-height: 100%; overflow: auto; background: var(--fundo, #0f141b); border: 1px solid var(--borda); border-radius: 14px; padding: 14px 16px; }
+    #leitor .topo, #visor .topo { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 10px; position: sticky; top: -14px; background: inherit; padding-top: 4px; }
+    .figsG { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 8px 0 12px; }
+    .fig.grande { width: auto; } .fig.grande img { height: 220px; }
+    #visor { flex-direction: column; } #visor .topo { width: 100%; color: var(--texto); background: #0f141bee; padding: 8px 12px; border-radius: 10px; position: static; }
+    #visor .area { flex: 1; width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 10px; margin-top: 8px; cursor: grab; touch-action: none; }
+    #visor .area img { max-width: 100%; max-height: 100%; transform-origin: center; user-select: none; -webkit-user-drag: none; }
+    .ramo { border: 1px solid var(--borda); border-radius: 10px; margin: 6px 0; padding: 4px 8px; } .ramo summary { cursor: pointer; padding: 4px 0; } .ramo .ver3d { float: right; margin-top: -2px; }
+    .no { padding: 5px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; } .no:hover { background: #ffffff10; } .no.ativo { outline: 1px solid var(--acento); }
+    textarea.cola { width: 100%; height: 90px; font: 11px ui-monospace, Consolas, monospace; background: #0e141c; color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
+    } }
+  </script>
+  <!-- precarga -->
+  <link rel="modulepreload" href="assets/vendor/three/build/three.module.js">
+  <link rel="modulepreload" href="assets/vendor/three/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="src/apresentacao/controladores/comandos.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/util.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/helicoptero3d.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/realismo.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/carregar.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+</head>
+<body class="pagina-motor">
+  <div id="app">
+    <aside id="painel">
+      <header>
+        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel HeliSense 3D">…</a>
+          <div class="marca-txt"><h1>Comandos e painel 3D <small>· HeliSense 3D</small></h1><p id="subModelo">carregando…</p></div>
+        </div>
+        <div class="linha topo"><select id="trocaModelo" title="Trocar de modelo" aria-label="Modelo"></select></div>
+      </header>
+      <nav id="abas" class="abas5" role="tablist" aria-label="Seções" style="grid-template-columns: repeat(5, 1fr)">
+        <button data-aba="comandos" class="ativa" title="Cadeia de comando: cíclico, coletivo, pedais, servos (Alt+1)"><i>✥</i><span>Comandos</span></button>
+        <button data-aba="painel" title="Painel de instrumentos e pedestal (Alt+2)"><i>▦</i><span>Painel</span></button>
+        <button data-aba="teste" title="Mover os comandos e seguir a cadeia (Alt+3)"><i>▶</i><span>Teste</span></button>
+        <button data-aba="estrutura" title="Estrutura de peças: capítulo ATA → conjunto → PN, com figura e 3D (Alt+4)"><i>⚙</i><span>Peças</span></button>
+        <button data-aba="procedimentos" title="Todos os procedimentos dos manuais Bell, leitura digital (Alt+5)"><i>☰</i><span>Procedimentos</span></button>
+      </nav>
+      <div id="conteudo"></div>
+      <footer id="rodape">Comandos e painel ilustrativos e simplificados para treinamento. Não substituem o manual de manutenção do fabricante.</footer>
+    </aside>
+
+    <main id="vista">
+      <div id="barra">
+        <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
+        <a class="botao" id="btManual" href="manual.html" title="Manual interativo do helicóptero">Manual 3D</a>
+        <a class="botao" id="btMotor" href="motor.html" title="Motor 3D">Motor 3D</a>
+        <button id="btPainel" title="Esconde ou mostra o painel">Ocultar painel</button>
+        <button id="btFuselagem" class="on" title="Mostra o contorno da fuselagem">Fuselagem</button>
+        <button id="btCopiloto" title="Comandos duplos (copiloto)">Copiloto</button>
+        <button id="btRotulos" title="Nomes das peças no 3D">Rótulos</button>
+        <button id="btVistaPainel" title="Aproxima do painel de instrumentos">Ver painel</button>
+        <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
+      </div>
+      <div id="rotulos"></div>
+      <div id="leituras" hidden></div>
+      <div id="ajuda">Arraste para girar · role para aproximar · clique numa peça ou instrumento</div>
+      <div id="erro" hidden></div>
+    </main>
+  </div>
+
+  <script src="src/dominio/frota/catalogo.js?v=20261123a"></script>
+  <script src="src/dominio/frota/comandos.js?v=20261123a"></script>
+  <script type="module" src="src/apresentacao/controladores/comandos.js?v=20261123a"></script>
+  <script>
+    if (location.protocol === 'file:') {
+      var e = document.getElementById('erro'); e.hidden = false;
+      e.innerHTML = 'Abra pelo servidor: <b>http://localhost/Bell%20429/comandos.html</b> (WAMP ligado) ou pelo GitHub Pages. Aberto direto do disco, o navegador bloqueia os módulos 3D.';
+    }
+  </script>
+</body>
+</html>

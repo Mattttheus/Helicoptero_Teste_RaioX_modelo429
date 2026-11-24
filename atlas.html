@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atlas visual · HeliSense 3D</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
+  <script>
+    // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
+    (function () {
+      function mostrar(m) { if (/ResizeObserver|setPointerCapture/.test(m)) return; var f = function () { var el = document.getElementById('erro'); if (!el) return; el.hidden = false; el.innerHTML = '<b>Algo falhou ao carregar esta página</b><br>' + String(m).replace(/</g, '&lt;') + '<br><small>Recarregue com Ctrl+F5 (limpa o cache). Se continuar, envie esta mensagem.</small>'; }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f(); }
+      window.addEventListener('error', function (e) { if (e.message) mostrar(e.message + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')); });
+      window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
+  <style>
+    body { overflow: auto; }
+    .atlas-pg { max-width: 1400px; margin: 0 auto; padding: 18px 20px 40px; color: #dfe6ee; }
+    .atlas-pg header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .atlas-pg h1 { font-size: 22px; margin: 0; flex: 1; }
+    .atlas-pg input[type=search] { min-width: 320px; padding: 8px 12px; border-radius: 8px; border: 1px solid #2b3646; background: #121821; color: #fff; }
+    .atlas-pg h2 { font-size: 15px; color: #ff8a2a; margin: 22px 0 8px; }
+    .atlas-pg .atlas-mini { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .atlas-pg .atlas-ficha { font-size: 12.5px; }
+    .atlas-pg .trecho { color: #8fa1b5; font-size: 11px; display: block; margin-top: 2px; }
+  </style>
+  <!-- precarga -->
+  <link rel="modulepreload" href="src/apresentacao/controladores/atlas.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/atlas_visor.js?v=20261123a">
+  <link rel="modulepreload" href="src/dominio/documentacao/atlas.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+</head>
+<body>
+  <div class="atlas-pg">
+    <header>
+      <a class="bt" href="index.html">‹ Modelos</a>
+      <h1>Atlas visual de helicópteros <small style="color:#8fa1b5;font-weight:400">· 120 fichas em alta definição</small></h1>
+      <input type="search" id="busca" placeholder="Buscar: compressor, injeção, FADEC, corrosão, chicote…" aria-label="Buscar no atlas">
+    </header>
+    <p class="nota">Material de estudo com representações conceituais. Consulte sempre a documentação específica da aeronave. Clique numa ficha para ver em tela cheia com zoom (role para aproximar, arraste para mover).</p>
+    <div id="lista"></div>
+  </div>
+  <div id="erro" hidden></div>
+  <script type="importmap">
+    { "imports": {
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
+    } }
+  </script>
+  <script type="module" src="src/apresentacao/controladores/atlas.js?v=20261123a"></script>
+</body>
+</html>

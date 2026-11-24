@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Exportar modelos 3D para o Blender</title>
+<script type="importmap">{ "imports": { "three": "../assets/vendor/three/build/three.module.js", "three/addons/": "../assets/vendor/three/examples/jsm/" } }</script>
+<style>body{font:14px system-ui;background:#0b0f15;color:#dfe6ee;padding:20px}li.ok{color:#46c08a}li.er{color:#ef5d5d}</style></head>
+<body><h2>Exportar todos os modelos 3D (helicópteros e motores) para .glb</h2><ul id="log"></ul>
+<script type="module">
+// Ferramenta local: monta cada modelo como no site (com o realce de materiais) e salva em assets/modelos3d/gerados/ para o Blender renderizar.
+import * as THREE from 'three';
+const base = '../';
+const log = (t, ok = true) => { const li = document.createElement('li'); li.className = ok ? 'ok' : 'er'; li.textContent = t; document.getElementById('log').append(li); };
+let GLTFExporter;
+try { ({ GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js')); }
+catch { ({ GLTFExporter } = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/exporters/GLTFExporter.js')); }
+const { construirHelicoptero } = await import(base + 'src/apresentacao/visoes/3d/helicoptero3d.js');
+const { construirMotor } = await import(base + 'src/apresentacao/visoes/3d/motor3d.js');
+const { realcarHelicoptero, realcarMotor } = await import(base + 'src/apresentacao/visoes/3d/realismo.js');
+const carregar = (src) => new Promise((ok, er) => { const s = document.createElement('script'); s.src = base + src + '?t=' + Date.now(); s.onload = ok; s.onerror = () => er(new Error(src)); document.head.append(s); });
+const CODIGO = new URLSearchParams(location.search).get('ok') || '';
+async function salvar(nome, obj) {
+  await new Promise((r) => setTimeout(r, 2500)); // texturas (WebP) terminam de carregar
+  obj.traverse((o) => { // só a geometria e o material visível vão para o arquivo
+    const id = o.userData && (o.userData.comp || o.userData.peca || o.userData.id); o.userData = {}; if (id && !o.name) o.name = String(id);
+    for (const m of [].concat(o.material || [])) m.userData = {};
+  });
+  obj.updateMatrixWorld(true);
+  const glb = await new GLTFExporter().parseAsync(obj, { binary: true, onlyVisible: true, maxTextureSize: 2048 });
+  const r = await fetch(`salvar_glb.php?ok=${encodeURIComponent(CODIGO)}&nome=${nome}`, { method: 'POST', body: glb });
+  const t = await r.text(); log(`${nome}: ${t}`, r.ok); return r.ok;
+}
+const resultado = { ok: [], erro: [] };
+try {
+  await carregar('src/dominio/frota/catalogo.js'); await carregar('src/dominio/motores/motor_comum.js');
+  const feitos = new Set();
+  for (const c of window.CATALOGO) {
+    try {
+      const h = construirHelicoptero(c.id); realcarHelicoptero(h);
+      for (const m of h.malhas) if (m.userData.base) m.material = m.userData.base;
+      if (h.matLinha) h.raiz.traverse((o) => { if (o.isLineSegments || o.isLine) o.visible = false; });
+      (await salvar(`heli_${c.id}_codigo`, h.raiz) ? resultado.ok : resultado.erro).push('heli ' + c.id);
+    } catch (e) { log(`heli ${c.id}: ${e.message}`, false); resultado.erro.push('heli ' + c.id); }
+    try {
+      await carregar(c.motorArq); const def = window.MOTOR; if (!def || feitos.has(def.id)) continue; feitos.add(def.id);
+      const mo = construirMotor(def); realcarMotor(mo);
+      (await salvar(`motor_${def.id}`, mo.raiz) ? resultado.ok : resultado.erro).push('motor ' + def.id);
+    } catch (e) { log(`motor de ${c.id}: ${e.message}`, false); resultado.erro.push('motor ' + c.id); }
+  }
+} catch (e) { log('falha geral: ' + e.message, false); }
+window.RESULTADO = resultado; log(`Concluído: ${resultado.ok.length} exportados, ${resultado.erro.length} com erro.`, !resultado.erro.length);
+</script></body></html>

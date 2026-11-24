@@ -1,0 +1,20 @@
+MODELOS 3D REAIS (.glb) – substituem as formas geradas por código
+
+Nome do arquivo:  motor_<id do motor>.glb   (o id está em src/dominio/frota/aeronaves/<modelo>/motor.js, campo "id")
+                  ex.: motor_arrius-2r.glb, motor_pw207d1.glb, motor_m250-c47.glb
+
+Dentro do arquivo, cada peça é um objeto cujo NOME é o id da peça no sistema:
+  entrada, compressor, compressor_axial, impulsor, tubos_descarga, combustao, camisa, bico_injetor, ignitor,
+  turbina_gp, turbina_livre, escape, coletor_escape, caixa_reducao, caixa_acessorios, controle_comb, ecu,
+  gerador, oleo, termopares, suportes, eixo_saida
+Peça sem objeto no arquivo continua com a forma gerada. Unidades em metros, eixo do motor em X (+X = saída), +Y para cima.
+
+Como obter: modelagem (Blender/CAD), modelo licenciado, ou geração por IA a partir das fichas do atlas (ex.: Meshy),
+separando cada peça em um objeto com o nome acima. Tudo continua funcionando: clique, destaque, raio-X, corte,
+vista explodida, fluxo de ar/combustível e sensores.
+
+CASCA REAL DA AERONAVE:  heli_<modelo>.glb  (ex.: heli_206.glb)
+  Encaixada sozinha sobre o modelo gerado no manual (comprimento, eixo e nariz). Botão "Modelo real" liga/desliga.
+  Ao selecionar um componente, no raio-X e no mapa de saúde a casca some para mostrar o interior; o clique atravessa a casca.
+  Converter do FlightGear (.ac):  python ferramentas/ac2glb.py <pasta Models> jetranger.ac,Interior/interior.ac assets/modelos3d/heli_206.glb
+  Do Blender: Arquivo > Exportar > glTF 2.0 (.glb), +Y para cima, metros.

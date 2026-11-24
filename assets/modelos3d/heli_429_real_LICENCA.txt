@@ -1,0 +1,8 @@
+heli_429_real.glb – Bell 429 Helicopter
+Autor: agreene (@davidre) – https://sketchfab.com/davidre
+Fonte: https://sketchfab.com/3d-models/bell-429-helicopter-8dda855f3ab343b7b69ca7adcbf24f03
+Licença: Creative Commons Atribuição 4.0 Internacional (CC BY 4.0) – https://creativecommons.org/licenses/by/4.0/
+Alterações (HeliSense 3D, 21/11/2026): convertido de OBJ para GLB (ferramentas/obj2glb.py); a textura de paleta do autor foi
+aplicada como material de pintura e o material das janelas como vidro; as peças do rotor principal e do rotor de cauda
+foram nomeadas pela geometria para o rotor animado do sistema se encaixar no mastro. Geometria sem alterações.
+Uso: projeto acadêmico (mestrado – ITA), rede local.

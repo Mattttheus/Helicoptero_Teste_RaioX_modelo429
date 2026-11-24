@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manutenção Interativa Bell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Hangar à noite: fundo azul-grafite, acento âmbar de luz de painel. Layout: uma coluna de cartões, 3D no topo. */
+  :root {
+    --fundo: #0d1218; --cartao: #151c25; --borda: #263241; --texto: #e7edf3; --suave: #8a99aa;
+    --acento: #ff9d2e; --azul: #5fb0ff; --ok: #3ccf8e; --alerta: #f2c14e; --erro: #ef5b5b;
+    --f-display: "Barlow Condensed", "Arial Narrow", sans-serif; --f-corpo: "IBM Plex Sans", system-ui, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.5 var(--f-corpo); }
+  a { color: var(--azul); }
+  .pagina { max-width: 760px; margin: 0 auto; padding: 0 16px 40px; display: grid; gap: 16px; }
+  header { padding: 18px 0 4px; display: grid; gap: 4px; }
+  .selo { display: inline-flex; align-items: center; gap: 8px; font: 600 13px var(--f-mono); color: var(--acento); letter-spacing: .04em; }
+  h1 { font: 700 34px/1.05 var(--f-display); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+  h2 { font: 600 22px/1.15 var(--f-display); margin: 0; letter-spacing: .02em; text-wrap: balance; }
+  .credito { color: var(--suave); font-size: 13px; }
+  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+  .sub { color: var(--suave); font-size: 13px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .chip { flex: none; border: 1px solid var(--borda); background: #1b2430; color: var(--texto); border-radius: 999px; padding: 7px 12px; font: 600 14px var(--f-display); letter-spacing: .03em; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--cor, var(--acento)); color: #10151b; border-color: transparent; }
+  .chip:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+  #palco { position: relative; height: 340px; border-radius: 12px; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #1b2635, #0b1016 72%); touch-action: none; }
+  #palco canvas { display: block; width: 100%; height: 100%; }
+  #legenda { position: absolute; left: 10px; bottom: 10px; right: 10px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+  #legenda span { background: #0b1016d9; border: 1px solid var(--borda); border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+  #peca { color: var(--acento); font-weight: 600; }
+  .botoes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bt { border: 1px solid var(--borda); background: #1b2430; color: var(--texto); border-radius: 9px; padding: 8px 12px; font: 500 14px var(--f-corpo); cursor: pointer; }
+  .bt.on { border-color: var(--acento); color: var(--acento); }
+  .ficha { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ficha div { background: #1b2430; border-radius: 10px; padding: 8px 10px; }
+  .ficha b { display: block; font: 600 12px var(--f-mono); color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
+  @media (max-width: 420px) { .ficha { grid-template-columns: 1fr; } h1 { font-size: 30px; } }
+  /* comandos */
+  .comandos { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: center; }
+  @media (max-width: 420px) { .comandos { grid-template-columns: 1fr; } #swash { justify-self: center; } }
+  .sl { display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; font-size: 14px; }
+  .sl input { width: 100%; accent-color: var(--acento); }
+  .sl output { font: 500 13px var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+  #swash { width: 150px; height: 150px; }
+  .leitura-valores { font: 500 13px var(--f-mono); color: var(--suave); font-variant-numeric: tabular-nums; }
+  /* leitura digital */
+  .exemplo { font: 600 11px var(--f-mono); color: #10151b; background: var(--alerta); border-radius: 6px; padding: 2px 6px; justify-self: start; letter-spacing: .04em; }
+  .passo { display: grid; grid-template-columns: 22px 22px 1fr; gap: 6px; align-items: start; padding: 8px; border-radius: 10px; background: #1b2430; cursor: pointer; }
+  .passo b { font-family: var(--f-mono); color: var(--suave); }
+  .passo:has(input:checked) { opacity: .5; text-decoration: line-through; }
+  .passo input { width: 18px; height: 18px; accent-color: var(--ok); margin: 2px 0 0; }
+  .aviso { border-left: 4px solid var(--alerta); background: #f2c14e14; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  .torque { background: #ff9d2e2e; color: #ffc27a; border-radius: 4px; padding: 0 4px; font-weight: 600; white-space: nowrap; }
+  .ferr { background: #3ccf8e26; color: #8ff0c2; border-radius: 4px; padding: 0 4px; font-family: var(--f-mono); font-size: 13px; }
+  .pn { color: var(--azul); font-family: var(--f-mono); font-size: 13px; border-bottom: 1px dotted var(--azul); }
+  .progresso { height: 6px; background: #1b2430; border-radius: 99px; overflow: hidden; } .progresso i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .2s; }
+  /* tabela */
+  .tabela { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  th { font: 600 12px var(--f-mono); color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
+  td.mod { font: 600 15px var(--f-display); white-space: nowrap; } td.mod i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
+  .rodape { color: var(--suave); font-size: 12px; text-align: center; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div class="pagina">
+  <header>
+    <span class="selo">HELIPARK · PLANEJAMENTO · DEMONSTRAÇÃO</span>
+    <h1>Manutenção Interativa Bell</h1>
+    <span class="credito">Criado por: Matheus Vinicius — Analista de Planejamento</span>
+  </header>
+
+  <section class="cartao" aria-labelledby="t3d">
+    <h2 id="t3d">Aeronave em 3D</h2>
+    <div class="chips" id="modelos" role="group" aria-label="Modelo"></div>
+    <div id="palco"><div id="legenda"><span id="peca">Toque numa parte da aeronave</span><span id="nomeModelo"></span></div></div>
+    <div class="botoes">
+      <button class="bt on" id="btRotor" type="button">Rotor girando</button>
+      <button class="bt" id="btRaiox" type="button">Raio-X</button>
+      <button class="bt" id="btVista" type="button">Vista geral</button>
+    </div>
+    <div class="ficha" id="ficha"></div>
+  </section>
+
+  <section class="cartao" aria-labelledby="tcmd">
+    <h2 id="tcmd">Comandos de voo</h2>
+    <span class="sub">Mexa nos comandos e veja o swashplate responder: coletivo sobe o prato, cíclico inclina o disco, pedais mudam o passo do rotor de cauda.</span>
+    <div class="comandos">
+      <div style="display:grid;gap:6px">
+        <label class="sl" for="slCol">Coletivo <input type="range" id="slCol" min="0" max="100" value="30"><output id="oCol"></output></label>
+        <label class="sl" for="slLon">Cíclico long. <input type="range" id="slLon" min="-100" max="100" value="0"><output id="oLon"></output></label>
+        <label class="sl" for="slLat">Cíclico lat. <input type="range" id="slLat" min="-100" max="100" value="0"><output id="oLat"></output></label>
+        <label class="sl" for="slPed">Pedais <input type="range" id="slPed" min="-100" max="100" value="0"><output id="oPed"></output></label>
+      </div>
+      <canvas id="swash" width="300" height="300" aria-label="Swashplate visto de cima"></canvas>
+    </div>
+    <div class="leitura-valores" id="valores"></div>
+    <span class="sub">Cadeia: stick → jackshaft → tubos e bellcranks → mixer → 3 servos hidráulicos → swashplate → pitch links → pás. Valores didáticos.</span>
+  </section>
+
+  <section class="cartao" aria-labelledby="tleit">
+    <h2 id="tleit">Leitura digital de procedimento</h2>
+    <span class="exemplo">EXEMPLO ILUSTRATIVO · NÃO USAR EM MANUTENÇÃO</span>
+    <span class="sub">Na versão da rede local, cada procedimento do manual vira um checklist como este, com torques, ferramentas e PN destacados e ligados ao catálogo de peças.</span>
+    <div class="progresso" aria-hidden="true"><i id="barra"></i></div>
+    <div class="aviso"><b>CAUTION</b> – Desligue a bateria e coloque etiqueta de aviso antes de mexer nos comandos.</div>
+    <div id="passos" style="display:grid;gap:6px"></div>
+  </section>
+
+  <section class="cartao" aria-labelledby="tmot">
+    <h2 id="tmot">Frota e motorização</h2>
+    <div class="tabela"><table>
+      <thead><tr><th>Modelo</th><th>Motor</th><th>Configuração</th><th>Potência</th><th>Rotor</th></tr></thead>
+      <tbody id="tabela"></tbody>
+    </table></div>
+    <span class="sub">Potências dos motores Rolls-Royce 250 Série IV conforme a ficha técnica pública EASA TCDS IM.E.109.</span>
+  </section>
+
+  <p class="rodape">Demonstração com modelos 3D ilustrativos. Os dados dos manuais Bell (procedimentos, catálogo de peças e figuras) ficam somente na rede local da Helipark.</p>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { construirHelicoptero } from './modelo.js';
+
+const FROTA = [
+  ['505', 'Bell 505 Jet Ranger X', 'Safran Arrius 2R', '1 turboeixo', '~505 shp', '2 pás, semirrígido', '#3fa7ff', '1 piloto + 4'],
+  ['429', 'Bell 429 GlobalRanger', 'P&WC PW207D1', '2 turboeixos', '~625 shp por motor', '4 pás, macio no plano', '#ff8a2a', '1–2 pilotos + 7'],
+  ['407', 'Bell 407 / 407GXi', 'RR M250-C47B / C47E/4', '1 turboeixo', '813 a 862 shp', '4 pás, composto', '#c77dff', '1 piloto + 6'],
+  ['206', 'Bell 206 JetRanger', 'RR 250-C20J', '1 turboeixo', '~420 shp', '2 pás, semirrígido', '#46c08a', '1 piloto + 4'],
+  ['206L4', 'Bell 206L-4 LongRanger IV', 'RR 250-C30P', '1 turboeixo', '485 kW (650 shp)', '2 pás, semirrígido', '#f2c14e', '1 piloto + 6'],
+  ['230', 'Bell 230', '2× RR 250-C30G/2', '2 turboeixos', '485 kW por motor', '2 pás, semirrígido', '#e05d6f', '1–2 pilotos + 8'],
+  ['430', 'Bell 430', '2× RR 250-C40B', '2 turboeixos', '533 kW por motor', '4 pás, sem rolamentos', '#4fd1c5', '1–2 pilotos + 8']
+];
+const NOMES = { cubo_rp: 'Cubo do rotor principal', pas_rp: 'Pás do rotor principal', mastro: 'Mastro', swash: 'Swashplate', transmissao: 'Transmissão principal', suporte_trans: 'Suportes da transmissão',
+  motor: 'Motor', eixo_motor: 'Eixo motor–transmissão', escapamento: 'Escapamento', entrada_ar: 'Entrada de ar do motor', gerador: 'Gerador de partida', radiador_oleo: 'Radiador de óleo',
+  eixo_rc: 'Eixo do rotor de cauda', caixa_rc: 'Caixa de 90° do rotor de cauda', rotor_cauda: 'Rotor de cauda', estabilizador: 'Estabilizador horizontal', deriva: 'Deriva vertical',
+  comandos: 'Comandos de voo', comandos_rc: 'Comando do rotor de cauda', hidraulico: 'Sistema hidráulico (servos)', combustivel: 'Tanque de combustível', bateria: 'Bateria',
+  avionica: 'Aviônica', avionica_tras: 'Aviônica traseira', painel: 'Painel de instrumentos', pitot: 'Tubo de pitot', antenas: 'Antenas', luzes: 'Luzes', extintor: 'Extintor',
+  esquis: 'Trem de pouso (esquis)', fuselagem: 'Fuselagem', fus_traseira: 'Fuselagem traseira', nariz: 'Nariz', carenagem_diant: 'Carenagem dianteira', carenagem_escape: 'Carenagem do escapamento', carenagem_motor: 'Carenagem do motor', carenagem_trans: 'Carenagem da transmissão', cone_cauda: 'Cone de cauda', janelas: 'Janelas', parabrisa: 'Para-brisa', vidro: 'Vidros', porta_bag: 'Porta do bagageiro', piso: 'Piso e estrutura da cabine', casca: 'Fuselagem', capo: 'Carenagens do motor', portas: 'Portas', cone: 'Cone de cauda' };
+const $ = (s) => document.querySelector(s);
+
+/* ---------- 3D ---------- */
+const palco = $('#palco');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); palco.prepend(renderer.domElement);
+const cena = new THREE.Scene();
+cena.add(new THREE.HemisphereLight(0xdde6f0, 0x1a2028, 1.15));
+const sol = new THREE.DirectionalLight(0xffffff, 1.5); sol.position.set(5, 9, 6); cena.add(sol);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
+const ctl = new OrbitControls(camera, renderer.domElement); ctl.enableDamping = true; ctl.enablePan = false; ctl.minDistance = 4; ctl.maxDistance = 40;
+let heli = null, girar = true, raiox = false, selMesh = [], idAtual = '505';
+const realce = new THREE.MeshStandardMaterial({ color: 0xff9d2e, emissive: 0x6a3000, metalness: 0.3, roughness: 0.5 });
+function vistaGeral() {
+  const cx = new THREE.Box3().setFromObject(heli.raiz), c = cx.getCenter(new THREE.Vector3()), r = cx.getSize(new THREE.Vector3()).length();
+  camera.position.set(c.x + r * 0.55, c.y + r * 0.3, c.z + r * 0.75); ctl.target.copy(c); ctl.update();
+}
+function aplicarRaiox() {
+  for (const m of heli.malhas) {
+    if (m.userData.orig === undefined) m.userData.orig = m.material;
+    const casca = /^(fuselagem|fus_traseira|nariz|carenagem|cone_cauda|porta|janelas|parabrisa|vidro)/.test(m.userData.comp || '');
+    if (selMesh.includes(m)) { m.material = realce; continue; }
+    if (raiox && casca) { const t = m.userData.orig.clone(); t.transparent = true; t.opacity = 0.12; t.depthWrite = false; m.material = t; }
+    else m.material = m.userData.orig;
+  }
+}
+function carregar(id) {
+  idAtual = id; if (heli) cena.remove(heli.raiz);
+  heli = construirHelicoptero(id); cena.add(heli.raiz); selMesh = []; aplicarRaiox(); vistaGeral();
+  const f = FROTA.find((x) => x[0] === id);
+  $('#nomeModelo').textContent = f[1]; $('#peca').textContent = 'Toque numa parte da aeronave';
+  $('#ficha').innerHTML = [['Motor', f[2]], ['Configuração', f[3]], ['Potência', f[4]], ['Rotor principal', f[5]], ['Ocupantes', f[7]], ['Comando direcional', ['505', '429'].includes(id) ? 'cabos e polias' : 'tubos']]
+    .map(([k, v]) => `<div><b>${k}</b>${v}</div>`).join('');
+  document.querySelectorAll('#modelos .chip').forEach((b) => b.setAttribute('aria-pressed', b.dataset.id === id));
+}
+$('#modelos').innerHTML = FROTA.map((f) => `<button class="chip" type="button" data-id="${f[0]}" style="--cor:${f[6]}" aria-pressed="false">${f[1].replace('Bell ', '')}</button>`).join('');
+$('#modelos').onclick = (e) => { const b = e.target.closest('.chip'); if (b) carregar(b.dataset.id); };
+$('#btRotor').onclick = (e) => { girar = !girar; e.currentTarget.classList.toggle('on', girar); };
+$('#btRaiox').onclick = (e) => { raiox = !raiox; e.currentTarget.classList.toggle('on', raiox); aplicarRaiox(); };
+$('#btVista').onclick = () => { selMesh = []; aplicarRaiox(); vistaGeral(); $('#peca').textContent = 'Toque numa parte da aeronave'; };
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let ini = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { ini = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!ini || Math.hypot(e.clientX - ini[0], e.clientY - ini[1]) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect(); ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ptr, camera);
+  const vis = heli.malhas.filter((m) => m.visible && !(raiox && /^(fuselagem|fus_traseira|nariz|carenagem|cone_cauda|porta|janelas|parabrisa|vidro)/.test(m.userData.comp || '')));
+  const hit = ray.intersectObjects(vis, false)[0]; if (!hit) return;
+  const comp = hit.object.userData.comp; selMesh = heli.malhas.filter((m) => m.userData.comp === comp); aplicarRaiox();
+  $('#peca').textContent = NOMES[comp] || (/^porta_pax/.test(comp) ? 'Porta de passageiros' : /^porta_trip/.test(comp) ? 'Porta da tripulação' : comp.replace(/_/g, ' '));
+});
+function redim() { const w = palco.clientWidth, h = palco.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+new ResizeObserver(redim).observe(palco);
+let t0 = performance.now();
+renderer.setAnimationLoop((t) => {
+  const dt = Math.min((t - t0) / 1000, 0.05); t0 = t;
+  if (girar && heli) for (const r of heli.rotores) r.obj.rotation[r.eixo] += dt * r.vel;
+  ctl.update(); renderer.render(cena, camera);
+});
+carregar('505');
+
+/* ---------- comandos e swashplate (vista de cima) ---------- */
+const cv = $('#swash'), g = cv.getContext('2d'); let fase = 0;
+const est = () => ({ col: +$('#slCol').value / 100, lon: +$('#slLon').value / 100, lat: +$('#slLat').value / 100, ped: +$('#slPed').value / 100 });
+const fmt = (v, d = 1) => (Math.abs(v) < 0.05 ? 0 : v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+function desenhar() {
+  const s = est(); g.clearRect(0, 0, 300, 300);
+  for (const [k, o] of [['col', 'oCol'], ['lon', 'oLon'], ['lat', 'oLat'], ['ped', 'oPed']]) $('#' + o).textContent = Math.round(s[k] * 100) + '%';
+  $('#valores').textContent = `Passo coletivo ≈ ${fmt(4 + s.col * 12)}° · disco: long. ${fmt(-s.lon * 8)}° / lat. ${fmt(s.lat * 8)}° · rotor de cauda ≈ ${fmt(s.ped * 18)}°`;
+  const cx = 150 + s.lat * 34, cy = 150 + s.lon * 34, R = 70 + s.col * 30;
+  g.strokeStyle = '#263241'; g.lineWidth = 2; g.beginPath(); g.arc(150, 150, 120, 0, 7); g.stroke();
+  [[-0.5, 'E'], [0.5, 'D'], [Math.PI / 2 + 1.07, 'C']].forEach(([a]) => { const x = 150 + Math.sin(a) * 105, y = 150 - Math.cos(a) * 105; g.fillStyle = '#7b5ccf'; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); });
+  g.fillStyle = 'rgba(255,157,46,.16)'; g.strokeStyle = '#ff9d2e'; g.lineWidth = 4; g.beginPath(); g.ellipse(cx, cy, R, R * (1 - Math.abs(s.lon) * 0.25), 0, 0, 7); g.fill(); g.stroke();
+  for (let i = 0; i < 4; i++) { const a = fase + i * Math.PI / 2; g.strokeStyle = '#e7edf3'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (R + 18), cy + Math.sin(a) * (R + 18)); g.stroke(); }
+  g.fillStyle = '#8a99aa'; g.beginPath(); g.arc(cx, cy, 8, 0, 7); g.fill();
+}
+document.querySelectorAll('.sl input').forEach((i) => { i.oninput = desenhar; });
+const reduzir = matchMedia('(prefers-reduced-motion: reduce)').matches;
+(function anima() { if (!reduzir) fase += 0.03; desenhar(); requestAnimationFrame(anima); })();
+
+/* ---------- leitura digital (exemplo ilustrativo, texto próprio) ---------- */
+const PASSOS = [
+  'Coloque a alavanca do coletivo no batente inferior e trave com a ferramenta de regulagem <span class="ferr">T-EXEMPLO-01</span>.',
+  'Remova a cupilha <span class="pn">MS24665-151</span>, a porca e o parafuso da extremidade do tubo de comando.',
+  'Inspecione o rolamento esférico quanto a folga, corrosão e travamento.',
+  'Instale o tubo com parafuso, arruelas e porca novos. Aplique torque de <span class="torque">75 a 95 inch-pounds</span>.',
+  'Instale cupilha nova e confira o curso completo do coletivo, sem interferência.'
+];
+$('#passos').innerHTML = PASSOS.map((p, i) => `<label class="passo" for="p${i}"><input type="checkbox" id="p${i}"><b>${i + 1}</b><span>${p}</span></label>`).join('');
+$('#passos').onchange = () => { const c = document.querySelectorAll('#passos input'); $('#barra').style.width = ([...c].filter((x) => x.checked).length / c.length * 100) + '%'; };
+
+/* ---------- tabela ---------- */
+$('#tabela').innerHTML = FROTA.map((f) => `<tr><td class="mod"><i style="background:${f[6]}"></i>${f[1].replace('Bell ', '')}</td><td>${f[2]}</td><td>${f[3]}</td><td>${f[4]}</td><td>${f[5]}</td></tr>`).join('');
+</script>
+</body>
+</html>

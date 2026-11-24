@@ -1,0 +1,4 @@
+heli_230.glb – casca externa, interior e rotor principal do Bell 222X (aeronave-base do Bell 230; usado também, alongado, como aproximação do 430)
+Origem: FlightGear, pacote Bell-222X – http://mirrors.ibiblio.org/flightgear/ftp/Aircraft-2020/Bell-222X.zip
+Licença: GNU GPL v2 (arquivo COPYING do pacote). Original em assets/modelos3d/fonte/.
+Conversão: ferramentas/ac2glb.py, 20/11/2026. Visual de referência – medidas e PNs vêm dos manuais.

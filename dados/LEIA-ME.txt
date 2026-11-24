@@ -1,0 +1,18 @@
+MANUTENÇÃO INTERATIVA – dados dos manuais Bell por aeronave (SOMENTE REDE LOCAL / WAMP)
+
+Material proprietário da Bell: não publicar em repositório online, GitHub ou site público.
+
+Uma pasta por aeronave (o nome é o do portal Bell):
+  dados\505\  dados\407\  dados\407GXi\  dados\429\  dados\206B\  dados\206L4\  dados\230\  dados\430\
+
+Dentro de cada pasta:
+  indice.json   procedimentos (título, tipo, código DMC/capítulo, link do portal), descrições de sistemas,
+                peças do catálogo (IPC no 505/407/407GXi/429; IPB por figura no 206B/206L4/230/430),
+                lista de figuras e páginas de figura
+  textos.json   texto completo de cada procedimento (IETM) ou de cada página (manuais por capítulo)
+  figuras\      figuras: ICN-....svg (IETM) e <capítulo>_p<n>.png (páginas de figura)
+
+Para atualizar a partir do portal Bell:
+  1. Chrome logado em https://www.bellhelicopter.net/tp/  →  F12 → Sources → Snippets → + New snippet.
+  2. Cole o conteúdo de ferramentas\indice_bell_console.js e aperte Ctrl+Enter (permita vários downloads).
+  3. Para cada aeronave o Chrome baixa dados_<modelo>.zip: extraia em dados\<modelo>\ .

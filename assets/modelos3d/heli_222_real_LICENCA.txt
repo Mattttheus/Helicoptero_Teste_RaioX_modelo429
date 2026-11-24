@@ -1,0 +1,3 @@
+heli_222_real.glb (não usado por padrão: modelo simplificado, sem janelas nem texturas)
+Origem: "Bell 222" por 8bit (@8_bit) – https://sketchfab.com/3d-models/fbbc375290cc4879a77547cb9f184de5
+Licença: CC BY 4.0 – crédito ao autor.

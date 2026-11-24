@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Motores e Sensores · Manutenção Interativa</title>
-  <meta name="description" content="Manutenção Interativa: tabela dos motores 3D dos helicópteros Bell 505, 429, 206 e 407 com os sensores de cada motor, organizada por modelo, e a posição de cada sensor no modelo 3D.">
+  <title>Motores e Sensores · HeliSense 3D</title>
+  <meta name="description" content="HeliSense 3D: tabela dos motores 3D dos helicópteros Bell 505, 429, 206 e 407 com os sensores de cada motor, organizada por modelo, e a posição de cada sensor no modelo 3D.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
   <script>
     // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
@@ -14,19 +14,29 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
   <script type="importmap">
     { "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
     } }
   </script>
+  <!-- precarga -->
+  <link rel="modulepreload" href="assets/vendor/three/build/three.module.js">
+  <link rel="modulepreload" href="assets/vendor/three/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="src/apresentacao/controladores/motores.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/motor3d.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/realismo.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/carregar.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </head>
 <body class="pagina-motores">
   <div class="motores-ini">
     <section class="lado">
       <div class="marca-grande"><a href="index.html" class="selo" title="Voltar ao painel">MI</a>
-        <div><h1>Motores 3D e sensores por modelo</h1><p>Manutenção Interativa · passe o mouse num sensor para ver onde ele fica no motor 3D; clique para abrir no motor do modelo</p></div>
+        <div><h1>Motores 3D e sensores por modelo</h1><p>HeliSense 3D · passe o mouse num sensor para ver onde ele fica no motor 3D; clique para abrir no motor do modelo</p></div>
       </div>
       <div class="linha"><a class="bt" href="index.html">‹ Painel dos modelos</a><button class="bt" id="btSoSerie">Só sensores de série</button><button class="bt" data-dado="csv">Exportar tabela (CSV)</button></div>
       <h3>Motores</h3>
@@ -45,8 +55,8 @@
   </div>
   <div id="erro" hidden></div>
 
-  <script src="modelos/catalogo.js?v=20261116b"></script>
-  <script type="module" src="motores.js?v=20261116b"></script>
+  <script src="src/dominio/frota/catalogo.js?v=20261123a"></script>
+  <script type="module" src="src/apresentacao/controladores/motores.js?v=20261123a"></script>
   <script>
     if (location.protocol === 'file:') {
       var e = document.getElementById('erro'); e.hidden = false;

@@ -1,0 +1,6 @@
+heli_206.glb – casca externa e interior do Bell 206 JetRanger
+Origem: FlightGear, pacote Bell-206-JetRanger (autores: Mojo, Emmanuel Baranger, Maik Justus, Heiko Schulz)
+        http://mirrors.ibiblio.org/flightgear/ftp/Aircraft-2020/Bell-206-JetRanger.zip
+Licença: GNU GPL v2 – o modelo pode ser usado, modificado e redistribuído sob a mesma licença.
+Conversão: ferramentas/ac2glb.py (AC3D -> glTF binário), 20/11/2026. Original em assets/modelos3d/fonte/.
+Uso no projeto: visual de referência (não é dado de engenharia da Bell; medidas e PNs vêm dos manuais).

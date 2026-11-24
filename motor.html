@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Motor 3D · Manutenção Interativa</title>
-  <meta name="description" content="Manutenção Interativa: motor 3D editável de cada helicóptero Bell, com mapa de instalação de sensores, testes de partida, voo, estresse e teste de sensores.">
+  <title>Motor 3D · HeliSense 3D</title>
+  <meta name="description" content="HeliSense 3D: motor 3D editável de cada helicóptero Bell, com mapa de instalação de sensores, testes de partida, voo, estresse e teste de sensores.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff8a2a'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='700' text-anchor='middle' fill='%2317100a'%3EMI%3C/text%3E%3C/svg%3E">
   <script>
     // Mostra na tela qualquer erro de carregamento (em vez de deixar o 3D em branco)
@@ -14,20 +14,41 @@
       window.addEventListener('unhandledrejection', function (e) { mostrar((e.reason && e.reason.message) || e.reason); });
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=20261116b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261123a">
   <script type="importmap">
     { "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "./assets/vendor/three/build/three.module.js",
+      "three/addons/": "./assets/vendor/three/examples/jsm/"
     } }
   </script>
+  <!-- precarga -->
+  <link rel="modulepreload" href="assets/vendor/three/build/three.module.js">
+  <link rel="modulepreload" href="assets/vendor/three/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="src/aplicacao/simulacao.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/controladores/motor.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/util.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/chicotes.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/estilo_ipc.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/fluxo_motor.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/mapa_sensores.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/motor3d.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/movimento_ipc.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/3d/realismo.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/atlas_visor.js?v=20261123a">
+  <link rel="modulepreload" href="src/apresentacao/visoes/galeria.js?v=20261123a">
+  <link rel="modulepreload" href="src/dominio/documentacao/atlas.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/carregar.js?v=20261123a">
+  <link rel="modulepreload" href="src/infraestrutura/modelos_reais.js?v=20261123a">
+  <!-- /precarga -->
+  <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#ff8a2a">
+  <script>if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </head>
 <body class="pagina-motor">
   <div id="app">
     <aside id="painel">
       <header>
-        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel Manutenção Interativa">…</a>
-          <div class="marca-txt"><h1>Motor 3D <small>· Manutenção Interativa</small></h1><p id="subModelo">carregando…</p></div>
+        <div class="marca"><a href="index.html" class="selo" id="selo" title="Voltar ao painel HeliSense 3D">…</a>
+          <div class="marca-txt"><h1>Motor 3D <small>· HeliSense 3D</small></h1><p id="subModelo">carregando…</p></div>
         </div>
         <div class="linha topo"><select id="trocaModelo" title="Trocar de modelo" aria-label="Modelo"></select></div>
       </header>
@@ -47,6 +68,7 @@
       <div id="barra">
         <a class="botao" href="index.html" title="Voltar ao painel dos modelos">‹ Modelos</a>
         <a class="botao" id="btManual" href="manual.html" title="Manual interativo do helicóptero">Manual 3D</a>
+        <a class="botao" id="btComandos" href="comandos.html" title="Comandos de voo e painel 3D">Comandos</a>
         <button id="btPainel" title="Esconde ou mostra o painel">Ocultar painel</button>
         <button id="btCorte" title="Corta as carcaças ao meio para ver o interior">Corte</button>
         <button id="btRaiox" title="Deixa as carcaças transparentes">Raio-X</button>
@@ -54,6 +76,12 @@
         <button id="btRotulos" title="Nomes dos sensores no 3D">Rótulos</button>
         <button id="btMapaNum" title="Mapa de onde colocar os sensores: um número em cada ponto de instalação">Mapa nº</button>
         <button id="btCarga" title="Pinta as peças pela carga durante os testes">Carga</button>
+        <button id="btFluxo" class="on" title="Mostra o caminho do ar, a injeção de combustível, a chama e o escape (segue a simulação)">Fluxo</button>
+        <button id="btIPC" title="Figura de catálogo (IPC): desenho técnico com contorno, peça selecionada em ciano e chamadas numeradas">Figura IPC</button>
+        <button id="btEletrica" title="Linhas elétricas e eletrônicas: chicote de cada sensor até a unidade de controle (FADEC/ECU)">Elétrica</button>
+        <button id="btFotos" hidden title="Fotos reais do motor e renders do Blender">Fotos reais</button>
+        <button id="btFoto" title="Salva uma imagem em alta definição (4K) da vista atual">Foto HD</button>
+        <button id="btHD" title="Qualidade de imagem alta: reflexos, texturas e sombras (desligue em computador lento)">HD</button>
         <button id="btGeral" title="Volta para a vista geral">Vista geral</button>
       </div>
       <div id="explodeCx" title="Separa os módulos do motor (vista explodida)"><label for="explodir">Vista explodida</label><input type="range" id="explodir" min="0" max="1" step="0.01" value="0"></div>
@@ -61,14 +89,25 @@
       <div id="rotulos"></div>
       <div id="dica" hidden></div>
       <div id="faseSim" hidden></div>
+      <div id="legendaEletrica" hidden></div>
+      <div id="cabineMotor" aria-label="Comandos do motor">
+        <div class="cab-topo"><b>Comandos do motor</b><span class="fase">Motor parado</span><button id="cmFechar" title="Recolher">▾</button></div>
+        <div class="cab-corpo">
+          <div class="cab-botoes"><button id="cmPartida" class="bt pri">Partida</button><button id="cmCorte" class="bt">Corte</button>
+            <span class="luz" id="cmIgn">IGN</span><span class="luz" id="cmComb">COMB</span></div>
+          <label class="cab-manete">Manete <input type="range" id="manete" min="0" max="100" step="1" value="70"><span id="maneteVal">70% potência</span></label>
+          <div class="cab-ind"><span>Ng <b id="cmNg">0</b>%</span><span><i id="cmTempN">TOT</i> <b id="cmTemp">0</b>°C</span><span>FF <b id="cmFF">0</b> kg/h</span><span>Tq <b id="cmTq">0</b>%</span></div>
+          <div class="legenda-fluxo"></div>
+        </div>
+      </div>
       <div id="instrumentos" hidden></div>
       <div id="ajuda">Arraste para girar · role para aproximar · clique numa peça ou num sensor</div>
       <div id="erro" hidden></div>
     </main>
   </div>
 
-  <script src="modelos/catalogo.js?v=20261116b"></script>
-  <script type="module" src="motor.js?v=20261116b"></script>
+  <script src="src/dominio/frota/catalogo.js?v=20261123a"></script>
+  <script type="module" src="src/apresentacao/controladores/motor.js?v=20261123a"></script>
   <script>
     if (location.protocol === 'file:') {
       var e = document.getElementById('erro'); e.hidden = false;

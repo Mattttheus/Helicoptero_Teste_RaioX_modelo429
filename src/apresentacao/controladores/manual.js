@@ -1,0 +1,1102 @@
+// HeliSense 3D – manual interativo de cada modelo: cena 3D, seleção de componentes e abas do manual.
+// O modelo vem da URL (manual.html?m=505); os dados ficam em src/dominio/frota/aeronaves/<id>/ (window.HELI).
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { MarcasNumeradas, capturarVistas, abrirJanela, escreverFolha } from '../visoes/3d/mapa_sensores.js?v=20261123a';
+import { construirHelicoptero } from '../visoes/3d/helicoptero3d.js?v=20261123a';
+import { prepararCena, realcarHelicoptero, realcarMotor, chaoSombra, enquadrarSombra, fotoHD, criarComposicao, aplicarHDRI, criarAdaptador } from '../visoes/3d/realismo.js?v=20261123a';
+import { modeloAtual, carregarScripts, mostrarErro } from '../../infraestrutura/carregar.js?v=20261123a';
+import { montarMalhaFuselagem, descartarMalha, CIRCUITOS } from '../visoes/3d/malha_fuselagem.js?v=20261123a';
+import { criarEstiloIPC, desenharChamadas } from '../visoes/3d/estilo_ipc.js?v=20261123a';
+import { aplicarCascaReal } from '../../infraestrutura/modelos_reais.js?v=20261123a';
+import { fotosDisponiveis, abrirGaleria } from '../visoes/galeria.js?v=20261123a';
+import { blocoReferencias, ligarVisor } from '../visoes/atlas_visor.js?v=20261123a';
+import { PECAS_MOTOR, COMPONENTES } from '../../dominio/documentacao/atlas.js?v=20261123a';
+import { esc, baixar, paraCsv, dataArq, centrarAbaixoDaBarra, abaixoDaBarra } from '../util.js?v=20261123a';
+import { criarMovimentoIPC } from '../visoes/3d/movimento_ipc.js?v=20261123a';
+import { normalizar, parecido, montarVocab, criarAnalisador, criarZonas } from '../../aplicacao/busca_texto.js?v=20261123a';
+import { TECNOLOGIAS, tecnologiaDe, catalogoPorArea, resumoTecnologias } from '../../dominio/sensores/catalogo_sensores.js?v=20261123a';
+import { analisar as analisarSensor, saudeComponentes, previsoes, formatarTempo, csvSensores } from '../../aplicacao/preditiva.js?v=20261123a';
+
+const CFG = modeloAtual();
+try { await carregarScripts(CFG.arquivos); } catch (e) { mostrarErro(e.message); throw e; }
+const { INFO, COMPS, ZONAS, ZC, KW, EXEMPLOS, MPI, ANAC, CONTROLE, SENSORES } = window.HELI;
+const K = CFG.chave; // prefixo das chaves salvas no navegador (o 429 mantém "b429_" e os dados já registrados)
+const $ = (s, r = document) => r.querySelector(s);
+const guarda = {
+  ler(k, pad) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : pad; } catch { return pad; } },
+  salvar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* armazenamento indisponível */ } }
+};
+
+/* =====================================================================
+   Identidade do modelo na página
+   ===================================================================== */
+document.title = `${CFG.nome} – Manual Interativo · HeliSense 3D`;
+document.documentElement.style.setProperty('--acento', CFG.cor);
+$('#selo').textContent = CFG.curto;
+$('#subModelo').textContent = `${CFG.nome} · ${CFG.motor} · ${INFO.ilustrativo ? 'prévia com fontes públicas' : 'base ' + INFO.manual}`;
+$('#rodape').textContent = INFO.aviso;
+$('#btMotor').href = 'motor.html?m=' + CFG.id;
+$('#btComandos').href = 'comandos.html?m=' + CFG.id;
+$('#trocaModelo').innerHTML = (window.CATALOGO || []).map((c) => `<option value="${c.id}" ${c.id === CFG.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('');
+$('#trocaModelo').onchange = (e) => { location.href = 'manual.html?m=' + e.target.value + location.hash; };
+
+/* =====================================================================
+   Cena 3D
+   ===================================================================== */
+const vista = $('#vista');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+vista.prepend(renderer.domElement);
+const cena = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const heli = construirHelicoptero(CFG.id);
+const VISTA_GERAL = { pos: new THREE.Vector3(...heli.vista.pos), alvo: new THREE.Vector3(...heli.vista.alvo) };
+camera.position.copy(VISTA_GERAL.pos);
+const controles = new OrbitControls(camera, renderer.domElement);
+controles.target.copy(VISTA_GERAL.alvo); controles.enableDamping = true; controles.minDistance = 1.2; controles.maxDistance = 45;
+
+cena.add(new THREE.HemisphereLight(0xdfe9ff, 0x2a2f38, 1.15));
+const sol = new THREE.DirectionalLight(0xffffff, 1.5); sol.position.set(6, 12, 8); cena.add(sol);
+const contra = new THREE.DirectionalLight(0x9fc0ff, 0.5); contra.position.set(-8, 4, -9); cena.add(contra);
+const grade = new THREE.GridHelper(40, 40, 0x2b3646, 0x1a222e); grade.position.set(-2, 0, 0); cena.add(grade);
+
+cena.add(heli.raiz);
+prepararCena(renderer, cena); realcarHelicoptero(heli); enquadrarSombra(sol, heli.raiz); chaoSombra(cena, 0, 40);
+let comp = null; criarComposicao(renderer, cena, camera).then((c) => { comp = c; ajustar(); }).catch((e) => console.warn('Pós-processamento indisponível:', e.message));
+aplicarHDRI(renderer, cena);
+const adaptar = criarAdaptador(renderer, () => ajustar());
+// modelo 3D real da aeronave (assets/modelos3d/heli_<modelo>.glb), se existir
+// modelo real por aeronave: próprio (206), da família (230 ← 222) ou aproximado esticando o da família (206L-4 ← 206, 430 ← 222/230)
+const CASCA = { '206': ['heli_206_real', false, 'Modelo real do Bell 206 JetRanger – "Bell 206 Jet Ranger" por helijah, Sketchfab, licença Sketchfab Standard'], '230': ['heli_230', false, 'Modelo real do Bell 222 – aeronave-base do 230 (FlightGear, GPL v2)'],
+  '505': ['heli_505_real', false, 'Modelo real do Bell 505 – "HW XYZ School Detailing" por Barmeny4_Yakov, Sketchfab, licença CC BY 4.0'],
+  '429': ['heli_429_real', false, 'Modelo real do Bell 429 – "Bell 429 Helicopter" por agreene (@davidre), Sketchfab, licença CC BY 4.0'],
+  '407': ['heli_407', false, 'Modelo refinado no Blender a partir do modelo do sistema (proporções reais, superfícies suavizadas, pintura e vidros PBR)'],
+  '206L4': ['heli_206_real', true, 'Aproximação: Bell 206 real (helijah, Sketchfab) alongado até o comprimento do 206L-4 (não é o modelo exato)'], '430': ['heli_230', true, 'Aproximação: Bell 222/230 alongado até o comprimento do 430 (não é o modelo exato)'] }[CFG.id] || [`heli_${CFG.id}`, false, 'Modelo 3D real da aeronave'];
+{ const q = new URLSearchParams(location.search).get('casca'); if (q && /^heli_\w+$/.test(q)) CASCA[0] = q; } // ?casca=heli_x: comparar modelos reais
+// modelos de alta qualidade no visualizador incorporado do Sketchfab (o arquivo não é copiado: exibido pelo Sketchfab, com crédito ao autor)
+const SKETCHFAB = { // modelos sem download/licença aberta: só pelo visualizador oficial do autor (embed), sem cópia do arquivo
+  '407': [
+    { uid: '61c2a2a1616d445299ea96d1b2035a3f', titulo: 'Bell 407 GX', autor: 'maxtsovma', perfil: 'https://sketchfab.com/maxtsovma', pagina: 'https://sketchfab.com/3d-models/bell-407-gx-61c2a2a1616d445299ea96d1b2035a3f' },
+    { uid: '525e35d0dc544dbaa622afd149f56781', titulo: 'Helicopter Bell 407 Jet Ranger', autor: 'CG Duck', perfil: 'https://sketchfab.com/cg_duck', pagina: 'https://sketchfab.com/3d-models/helicopter-bell-407-jet-ranger-525e35d0dc544dbaa622afd149f56781' }
+  ],
+  '429': [{ uid: '8dda855f3ab343b7b69ca7adcbf24f03', titulo: 'Bell 429 Helicopter', autor: 'agreene', perfil: 'https://sketchfab.com/davidre', pagina: 'https://sketchfab.com/3d-models/bell-429-helicopter-8dda855f3ab343b7b69ca7adcbf24f03' }]
+}[CFG.id];
+if (SKETCHFAB) {
+  const b = $('#btSketchfab'); b.hidden = false;
+  if (SKETCHFAB.length > 1) b.textContent = `Sketchfab (${SKETCHFAB.length})`;
+  const lk = (href, txt) => `<a href="${href}" target="_blank" rel="noopener nofollow" style="color:#1CAAD9;font-weight:bold">${esc(txt)}</a>`;
+  b.onclick = () => {
+    const fundo = document.createElement('div');
+    fundo.style.cssText = 'position:fixed;inset:0;z-index:50;background:rgba(5,8,12,.82);display:flex;align-items:center;justify-content:center;padding:16px';
+    const sem = navigator.onLine === false;
+    const abas = SKETCHFAB.length > 1 ? SKETCHFAB.map((m, i) => `<button class="bt${i ? '' : ' on'}" data-sf="${i}">${esc(m.titulo)}</button>`).join('') : '';
+    fundo.innerHTML = `<div style="width:min(1100px,100%);height:min(720px,100%);display:flex;flex-direction:column;background:#0b0f15;border:1px solid #2a3340;border-radius:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;color:#dfe5ec;font:600 14px Arial,sans-serif;flex-wrap:wrap"><span style="flex:1" data-tit></span>${abas}<button class="bt" data-fechar>Fechar</button></div>
+      ${sem ? '<p class="nota" style="padding:20px">Sem internet: o modelo do Sketchfab só abre conectado. O modelo 3D do HeliSense continua funcionando offline.</p>'
+        : '<iframe data-if style="flex:1;border:0;width:100%" allow="autoplay; fullscreen; xr-spatial-tracking" allowfullscreen></iframe>'}
+      <p style="margin:0;padding:6px 12px;font:13px Arial,sans-serif;color:#9aa6b2" data-cred></p></div>`;
+    const mostrar = (i) => {
+      const m = SKETCHFAB[i];
+      fundo.querySelector('[data-tit]').textContent = `${m.titulo} – visualizador Sketchfab`;
+      const f = fundo.querySelector('[data-if]'); if (f) { f.title = m.titulo; f.src = `https://sketchfab.com/models/${m.uid}/embed?autostart=1&ui_theme=dark`; }
+      fundo.querySelector('[data-cred]').innerHTML = `${lk(m.pagina, m.titulo)} por ${lk(m.perfil, m.autor)} no ${lk('https://sketchfab.com', 'Sketchfab')} · exibido pelo visualizador do autor, sem cópia do arquivo`;
+      fundo.querySelectorAll('[data-sf]').forEach((x) => x.classList.toggle('on', +x.dataset.sf === i));
+    };
+    const fechar = () => fundo.remove();
+    fundo.addEventListener('click', (e) => { const t = e.target.closest('[data-sf]'); if (t) mostrar(+t.dataset.sf); else if (e.target === fundo || e.target.closest('[data-fechar]')) fechar(); });
+    document.addEventListener('keydown', function esc1(e) { if (e.key === 'Escape') { fechar(); document.removeEventListener('keydown', esc1); } });
+    document.body.append(fundo); mostrar(0);
+  };
+}
+// sem o arquivo principal (ex.: site público, onde o modelo de licença restrita não é publicado), usa o modelo livre da mesma aeronave
+aplicarCascaReal(heli, `assets/modelos3d/${CASCA[0]}.glb`, { esticar: CASCA[1] }).then((r) => r || (CASCA[0].endsWith('_real') ? aplicarCascaReal(heli, `assets/modelos3d/${CASCA[0].replace(/_real$/, '')}.glb`, { esticar: CASCA[1] }) : null)).then((r) => {
+  if (!r) return; cascaReal = r.casca;
+  // rotor que gira encaixado no mastro do modelo real (o mastro do modelo do sistema fica em outro ponto da fuselagem)
+  const rp = (heli.rotores.find((x) => x.eixo === 'y') || {}).obj;
+  if (r.rotor && rp && rp.parent) {
+    heli.raiz.updateMatrixWorld(true); const pw = rp.getWorldPosition(new THREE.Vector3());
+    if (pw.distanceTo(r.rotor) > 0.03) {
+      rotorReal = { obj: rp, base: rp.position.clone(), real: rp.parent.worldToLocal(r.rotor.clone()), mastro: null };
+      if (r.peMastro !== null && r.rotor.y - r.peMastro > 0.02) { // mastro ligando a carenagem ao cubo
+        const alt = r.rotor.y - r.peMastro + 0.04, m = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, alt, 20), new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.8, roughness: 0.35 }));
+        m.position.set(r.rotor.x, r.peMastro - 0.02 + alt / 2, r.rotor.z); m.castShadow = true; m.raycast = () => {};
+        m.applyMatrix4(new THREE.Matrix4().copy(heli.raiz.matrixWorld).invert()); heli.raiz.add(m); rotorReal.mastro = m;
+      }
+    }
+  }
+  const rc = (heli.rotores.find((x) => x.eixo !== 'y') || {}).obj; // rotor de cauda no lugar do rotor de cauda real
+  if (r.rotorCauda && rc && rc.parent) { heli.raiz.updateMatrixWorld(true); if (rc.getWorldPosition(new THREE.Vector3()).distanceTo(r.rotorCauda) > 0.03) rotorCaudaReal = { obj: rc, base: rc.position.clone(), real: rc.parent.worldToLocal(r.rotorCauda.clone()) }; }
+  const b = $('#btReal'); if (b) { b.hidden = false; b.title = CASCA[2]; if (CASCA[1]) b.textContent = 'Modelo real (aprox.)'; else if (/refinado/.test(CASCA[2])) b.textContent = 'Modelo refinado'; b.classList.add('on'); b.onclick = (e) => { verReal = !verReal; e.currentTarget.classList.toggle('on', verReal); aplicarMateriais(); }; }
+  enquadrarSombra(sol, heli.raiz); aplicarMateriais();
+}).catch((e) => console.warn('Modelo real não carregado:', e.message));
+heli.raiz.updateMatrixWorld(true);
+const info = {};
+for (const id in heli.partes) {
+  const caixa = new THREE.Box3(); heli.partes[id].forEach((m) => caixa.expandByObject(m));
+  info[id] = { caixa, centro: caixa.getCenter(new THREE.Vector3()) };
+}
+
+/* ---------- mapa de onde colocar os sensores: um ponto numerado por sensor, sobre o seu componente ---------- */
+const corSensor = (s) => s.tipo === 'bool' ? 0xf0b83c : s.un === '°C' ? 0xff9f6a : s.un === 'ips' ? 0xb26bff : s.un === 'µε' ? 0x2ec4b6 : s.un === 'g' ? 0xef5d5d : s.un === 'mm' ? 0x46c08a : ['psi', '%', 'inH₂O'].includes(s.un) ? 0x3fa7ff : 0xd0d6de;
+const LEGENDA_MAPA = [['Temperatura', 0xff9f6a], ['Pressão / torque / %', 0x3fa7ff], ['Vibração', 0xb26bff], ['Deformação (strain gauge)', 0x2ec4b6], ['Deslocamento / tracking', 0x46c08a], ['Aceleração (pouso)', 0xef5d5d], ['Discreto (limalha, trava, falha)', 0xf0b83c], ['Elétrico / outros', 0xd0d6de]];
+const NUM_SENS = new Map(SENSORES.map((s, i) => [s.id, i + 1]));
+const grpPinos = new THREE.Group(); grpPinos.visible = false; heli.raiz.add(grpPinos);
+const pinos = {};
+{
+  const porComp = {};
+  for (const s of SENSORES) {
+    const c = s.comp[0], k = (porComp[c] = (porComp[c] ?? -1) + 1), base = (info[c] ? info[c].centro : new THREE.Vector3()).clone();
+    if (k) base.add(new THREE.Vector3(0.1 * Math.cos(k * 2.4), 0.16 * k, 0.16 * Math.sin(k * 2.4))); // vários sensores no mesmo componente: espalha
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), new THREE.MeshBasicMaterial({ color: corSensor(s), depthTest: false }));
+    m.position.copy(base); m.renderOrder = 10; grpPinos.add(m); pinos[s.id] = m;
+  }
+}
+const marcasMapa = new MarcasNumeradas(document.getElementById('vista'));
+marcasMapa.definir(SENSORES.map((s) => ({ id: s.id, n: NUM_SENS.get(s.id), cor: corSensor(s), titulo: `${NUM_SENS.get(s.id)} · ${s.n} – ${s.comp.map((c) => COMPS[c].n).join(', ')}`, obter: (v) => pinos[s.id].getWorldPosition(v) })));
+let sensorMapa = null, raioxAntesMapa = null;
+
+const matDestaque = new THREE.MeshStandardMaterial({ color: 0xff8a2a, emissive: 0xff5a00, emissiveIntensity: 0.7, roughness: 0.45, side: THREE.DoubleSide });
+const matFantasma = new THREE.MeshStandardMaterial({ color: 0x9db3c9, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9 });
+
+const matSaude = {
+  ok: new THREE.MeshStandardMaterial({ color: 0x3fc98a, emissive: 0x0f7a45, emissiveIntensity: 0.5, roughness: 0.5, side: THREE.DoubleSide }),
+  al: new THREE.MeshStandardMaterial({ color: 0xf0b83c, emissive: 0xa86a00, emissiveIntensity: 0.7, roughness: 0.5, side: THREE.DoubleSide }),
+  cr: new THREE.MeshStandardMaterial({ color: 0xef4d4d, emissive: 0xc01010, emissiveIntensity: 0.9, roughness: 0.5, side: THREE.DoubleSide }),
+  sem: new THREE.MeshStandardMaterial({ color: 0x7c8794, roughness: 0.7, side: THREE.DoubleSide }),
+  // preditivo: ainda dentro da faixa, mas com tendência de sair dela (te) ou comportamento fora do normal (an)
+  te: new THREE.MeshStandardMaterial({ color: 0x3fa7ff, emissive: 0x0b4f9a, emissiveIntensity: 0.6, roughness: 0.5, side: THREE.DoubleSide }),
+  an: new THREE.MeshStandardMaterial({ color: 0xb26bff, emissive: 0x5a1fa8, emissiveIntensity: 0.6, roughness: 0.5, side: THREE.DoubleSide }),
+  // revestimento em condição normal fica translúcido para deixar ver os componentes internos
+  cascaOk: new THREE.MeshStandardMaterial({ color: 0x4fd69a, transparent: true, opacity: 0.16, depthWrite: false, roughness: 0.8, side: THREE.DoubleSide })
+};
+
+const sel = new Set();
+let raiox = false, girar = false, mapaSaude = false, cascaReal = null, verReal = true;
+const ROTORES = /^(pas_rp|cubo_rp|swash|rotor_cauda|mastro\w*|cubo_rc)$/;
+const ROTORES_GIRAM = /^(pas_rp|cubo_rp|rotor_cauda|cubo_rc)$/; // com o rotor encaixado no mastro real: o mastro do sistema fica escondido
+const matCascaFantasma = new THREE.MeshStandardMaterial({ color: 0xbfd3e6, transparent: true, opacity: 0.16, depthWrite: false, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+function cascaFantasma(liga) { // troca os materiais do modelo real por um translúcido (e devolve os originais)
+  if (!cascaReal || cascaReal.userData.fantasma === liga) return;
+  cascaReal.userData.fantasma = liga;
+  cascaReal.traverse((o) => { if (!o.isMesh) return; if (liga) { o.userData.matOrig ??= o.material; o.material = matCascaFantasma; o.renderOrder = 3; o.castShadow = false; } else if (o.userData.matOrig) { o.material = o.userData.matOrig; o.renderOrder = 0; o.castShadow = true; } });
+}
+let rotorCaudaReal = null; // { obj, base, real }: idem para o rotor de cauda
+let rotorReal = null; // { obj, base, real }: posição do rotor principal no modelo do sistema e no mastro do modelo real
+let saudeComp = {};   // componente -> 'ok' | 'te' (tendência) | 'an' (anomalia) | 'al' | 'cr' | 'sem' (preenchido pela telemetria + análise preditiva)
+
+function aplicarMateriais() {
+  const tem = sel.size > 0;
+  for (const m of heli.malhas) {
+    const id = m.userData.comp;
+    if (tem) m.material = sel.has(id) ? matDestaque : matFantasma;
+    else if (mapaSaude) m.material = !saudeComp[id] ? matFantasma : COMPS[id].shell && saudeComp[id] === 'ok' ? matSaude.cascaOk : matSaude[saudeComp[id]];
+    else m.material = raiox && COMPS[id].shell ? matFantasma : m.userData.base;
+    m.renderOrder = m.material.transparent && m.material.depthWrite === false ? 2 : 0;
+  }
+  // casca real (modelo .glb): aparece na vista normal; some ao selecionar, no raio-X e no mapa de saúde (para ver os componentes)
+  const real = !!cascaReal && verReal && !tem && !raiox && !mapaSaude && !ipc.ativo;
+  // o modelo real fica SEMPRE à vista: nas análises (seleção, raio-X, mapa de saúde, sensores) vira uma casca translúcida
+  // sobre os componentes internos, para ver a forma e as peculiaridades da aeronave real junto com os dados
+  const fantasma = !!cascaReal && verReal && !real && !ipc.ativo;
+  if (cascaReal) {
+    cascaReal.visible = real || fantasma; cascaFantasma(fantasma);
+    const vis = rotorReal ? ROTORES_GIRAM : ROTORES;
+    for (const m of heli.malhas) {
+      const id = m.userData.comp, casca = COMPS[id] && COMPS[id].shell;
+      if (real) m.visible = vis.test(id);
+      else if (fantasma) m.visible = (!casca && !(rotorReal && /^(mastro\w*|swash)$/.test(id))) || sel.has(id) || (mapaSaude && ['al', 'cr', 'te', 'an'].includes(saudeComp[id])); // a casca do modelo do sistema dá lugar à real
+      else m.visible = true;
+    }
+  }
+  if (rotorCaudaReal) rotorCaudaReal.obj.position.copy(real || fantasma ? rotorCaudaReal.real : rotorCaudaReal.base);
+  if (rotorReal) { const noReal = real || fantasma; rotorReal.obj.position.copy(noReal ? rotorReal.real : rotorReal.base); if (rotorReal.mastro) rotorReal.mastro.visible = noReal; } // com a casca real só os rotores (que giram) ficam à vista; o clique continua achando as peças
+  heli.matLinha.opacity = real ? 0 : tem || raiox || mapaSaude ? 0.18 : 0.6;
+}
+
+function selecionar(ids, { foco = true } = {}) {
+  sel.clear();
+  for (const id of ids || []) if (heli.partes[id]) sel.add(id);
+  aplicarMateriais(); montarRotulos(); barraSelecao();
+  if (foco && sel.size) focar();
+}
+
+/* ---------- Câmera ---------- */
+let voo = null;
+function voar(pos, alvo, dur = 900) { voo = { t0: performance.now(), dur, p0: camera.position.clone(), p1: pos, a0: controles.target.clone(), a1: alvo }; }
+controles.addEventListener('start', () => { voo = null; });
+function focar() {
+  const caixa = new THREE.Box3(), dir = new THREE.Vector3();
+  for (const id of sel) { caixa.union(info[id].caixa); if (COMPS[id].v) dir.add(new THREE.Vector3(...COMPS[id].v).normalize()); }
+  if (dir.lengthSq() < 0.05) dir.copy(camera.position).sub(controles.target);
+  dir.normalize();
+  const c = caixa.getCenter(new THREE.Vector3()), r = caixa.getSize(new THREE.Vector3()).length() / 2;
+  const fv = THREE.MathUtils.degToRad(camera.fov) / 2, fh = Math.atan(Math.tan(fv) * camera.aspect);
+  voar(c.clone().addScaledVector(dir, Math.max(r / Math.sin(Math.min(fv, fh)) * 1.15, 7)), c);
+}
+// Vista geral enquadrada conforme a proporção da tela
+function vistaGeral(animar = true) {
+  const dir = VISTA_GERAL.pos.clone().sub(VISTA_GERAL.alvo).normalize();
+  const fv = THREE.MathUtils.degToRad(camera.fov) / 2, fh = Math.atan(Math.tan(fv) * camera.aspect);
+  const pos = VISTA_GERAL.alvo.clone().addScaledVector(dir, heli.vista.raio / Math.sin(Math.min(fv, fh)));
+  if (animar) voar(pos, VISTA_GERAL.alvo.clone()); else { camera.position.copy(pos); controles.target.copy(VISTA_GERAL.alvo); }
+}
+
+/* ---------- Rótulos e barra de seleção ---------- */
+const elRotulos = $('#rotulos');
+let rotulos = [];
+function montarRotulos() {
+  elRotulos.innerHTML = ''; rotulos = [];
+  if (sel.size > 9) return;
+  for (const id of sel) { const d = document.createElement('div'); d.className = 'rotulo'; d.textContent = COMPS[id].n; elRotulos.append(d); rotulos.push({ id, d }); }
+}
+const pv = new THREE.Vector3();
+function posicionarRotulos() {
+  const w = vista.clientWidth, h = vista.clientHeight;
+  for (const r of rotulos) {
+    pv.copy(info[r.id].centro).project(camera);
+    r.d.style.display = pv.z > 1 ? 'none' : '';
+    r.d.style.left = ((pv.x * 0.5 + 0.5) * w) + 'px'; r.d.style.top = ((-pv.y * 0.5 + 0.5) * h) + 'px';
+  }
+}
+// componente do 3D → capítulo ATA do manual (para abrir peças e procedimentos na página de comandos)
+const COMP_ATA = { entrada_ar: '75', avionica: '31', avionica_tras: '31', antenas: '23', bateria: '24', gerador: '24', piso: '53', extintor: '26', combustivel: '28',
+  hidraulico: '29', pitot: '34', painel: '31', esquis: '32', luzes: '33', suporte_trans: '63', estabilizador: '55', deriva: '55', cubo_rp: '62', pas_rp: '62',
+  transmissao: '63', mastro: '63', eixo_motor: '63', swash: '62', rotor_cauda: '64', eixo_rc: '65', caixa_rc: '65', motor: '72', escapamento: '78', radiador_oleo: '79',
+  comandos: '67', comandos_rc: '67' };
+function barraSelecao() {
+  const el = $('#selbar');
+  if (!sel.size) { el.hidden = true; return; }
+  el.hidden = false;
+  const nomes = [...sel].map((id) => COMPS[id].n);
+  const temMotor = [...sel].some((id) => COMPS[id].motor);
+  const caps = [...new Set([...sel].map((id) => COMP_ATA[id]).filter(Boolean))];
+  el.innerHTML = `<b>Onde vamos mexer:</b> ${esc(nomes.slice(0, 4).join(' · '))}${nomes.length > 4 ? ` · +${nomes.length - 4}` : ''}<button class="bt mini" id="btLimpar">Limpar</button>${temMotor ? `<a class="bt mini" href="motor.html?m=${CFG.id}">Motor 3D ›</a>` : ''}${caps.length ? `<a class="bt mini" href="comandos.html?m=${CFG.id}&cap=${caps[0]}#estrutura" title="Peças e procedimentos do manual Bell (ATA ${caps.join(', ')})">Manual Bell · ATA ${caps[0]} ›</a>` : ''}`;
+}
+$('#selbar').addEventListener('click', (e) => { if (e.target.id === 'btLimpar') { selecionar([]); marcarAtivo(null); } });
+
+/* ---------- Clique e passagem do mouse ---------- */
+const raio = new THREE.Raycaster(), mouse = new THREE.Vector2();
+function compSobCursor(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  raio.setFromCamera(mouse, camera);
+  const hits = raio.intersectObjects(heli.malhas, false);
+  const h = hits.find((x) => x.object.material !== matFantasma) || hits[0];
+  return h ? h.object.userData.comp : null;
+}
+let baixo = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { baixo = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!baixo || Math.hypot(e.clientX - baixo[0], e.clientY - baixo[1]) > 5) return;
+  const id = compSobCursor(e);
+  if (id) { selecionar([id], { foco: false }); abrirAba('sistemas'); desenhar.sistemas(id); }
+});
+const dica = $('#dica');
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (e.buttons) { dica.hidden = true; return; }
+  const id = compSobCursor(e);
+  dica.hidden = !id; renderer.domElement.style.cursor = id ? 'pointer' : 'grab';
+  if (id) { const r = vista.getBoundingClientRect(); dica.textContent = `${COMPS[id].n} · ATA ${COMPS[id].ata}`; dica.style.left = (e.clientX - r.left + 14) + 'px'; dica.style.top = (e.clientY - r.top + 14) + 'px'; }
+});
+renderer.domElement.addEventListener('pointerleave', () => { dica.hidden = true; });
+
+/* ---------- Barra de ferramentas ---------- */
+$('#btRaiox').onclick = (e) => { raiox = !raiox; e.currentTarget.classList.toggle('on', raiox); aplicarMateriais(); };
+$('#btGirar').onclick = (e) => { girar = !girar; e.currentTarget.classList.toggle('on', girar); };
+// malha elétrica da fuselagem: liga junto com o raio-X (os cabos correm por dentro) e mostra a legenda de cores
+let malha = null, raioxAntesMalha = null;
+function ligarMalha(v) {
+  descartarMalha(malha); malha = v ? montarMalhaFuselagem(heli, info) : null;
+  $('#btEletrica').classList.toggle('on', v);
+  let leg = $('#legMalha');
+  if (v && !leg) { leg = document.createElement('div'); leg.id = 'legMalha'; leg.title = 'Malha elétrica ilustrativa – não substitui o diagrama elétrico (WDM) do fabricante';
+    leg.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:30px;z-index:3;background:#121821cc;border:1px solid var(--borda);border-radius:14px;padding:3px 10px;font-size:11px;white-space:nowrap;display:flex;gap:10px;align-items:center';
+    leg.innerHTML = CIRCUITOS.map(([, cor, n, curto]) => `<span title="${n}"><i style="display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px;background:#${cor.toString(16).padStart(6, '0')}"></i>${curto}</span>`).join('');
+    vista.append(leg); }
+  if (leg) leg.hidden = !v;
+  if (v && !raiox) { raioxAntesMalha = false; raiox = true; $('#btRaiox').classList.add('on'); aplicarMateriais(); }
+  else if (!v && raioxAntesMalha === false) { raiox = false; raioxAntesMalha = null; $('#btRaiox').classList.remove('on'); aplicarMateriais(); }
+}
+$('#btEletrica').onclick = () => ligarMalha(!malha);
+// figura de catálogo (IPC): fundo branco, contorno preto, peças selecionadas em ciano com chamadas numeradas
+const ipc = criarEstiloIPC(renderer, cena);
+const svgChamadas = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+svgChamadas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:2'; svgChamadas.hidden = true; vista.append(svgChamadas);
+const listaIPC = document.createElement('div'); listaIPC.hidden = true;
+listaIPC.style.cssText = 'position:absolute;left:10px;bottom:30px;z-index:3;background:#fff;color:#111;border:1px solid #333;border-radius:4px;padding:5px 8px;font:12px Arial,sans-serif;max-width:60%';
+vista.append(listaIPC);
+const VIDRO_IPC = /^(parabrisa|janelas)$/;
+function desenharIPC() {
+  const malhas = heli.malhas.filter((m) => m.visible);
+  if (malha) malha.traverse((o) => { if (o.isMesh) malhas.push(o); });
+  const tem = sel.size > 0;
+  ipc.desenhar(camera, malhas, (m) => sel.has(m.userData.comp) || (!!m.userData.circuito && !tem), (m) => VIDRO_IPC.test(m.userData.comp) || ((tem || raiox) && COMPS[m.userData.comp]?.shell));
+  const ids = [...sel].slice(0, 12);
+  desenharChamadas(svgChamadas, ids.map((id, k) => ({ n: k + 1, pos: info[id].centro.clone().add(movIPC.deslocamento(id)) })), camera, vista.clientWidth, vista.clientHeight);
+  const txt = ids.map((id, k) => `<b>${k + 1}</b> ${esc(COMPS[id].n)}`).join('<br>');
+  if (listaIPC.innerHTML !== txt) listaIPC.innerHTML = txt; listaIPC.hidden = !ids.length;
+}
+// movimento na figura IPC: montagem animada (componentes se afastam e voltam), arrastar peças, rotores girando, girar figura
+const movIPC = criarMovimentoIPC({
+  vista, camera, controles, dom: renderer.domElement,
+  unidades: () => { const g = new Map(); for (const m of heli.malhas) { const c = m.userData.comp; if (!c) continue; if (!g.has(c)) g.set(c, []); g.get(c).push(m); } return [...g].map(([chave, objs]) => ({ chave, objs })); },
+  girar: (dt) => { if (!girar) for (const r of heli.rotores) r.obj.rotation[r.eixo] += dt * r.vel * 0.35; },
+  topo: () => abaixoDaBarra(vista)
+});
+window.MOV_IPC = movIPC; // para os testes no navegador
+$('#btIPC').onclick = (e) => {
+  const v = !ipc.ativo; ipc.ligar(v); e.currentTarget.classList.toggle('on', v);
+  svgChamadas.hidden = !v; listaIPC.hidden = true; elRotulos.style.display = v ? 'none' : '';
+  aplicarMateriais(); movIPC.ligar(v);
+};
+function ligarMapaSens(v) {
+  grpPinos.visible = v; marcasMapa.mostrar(v); $('#btMapaSens').classList.toggle('on', v);
+  if (v && !raiox) { raioxAntesMapa = false; raiox = true; $('#btRaiox').classList.add('on'); aplicarMateriais(); } // revestimento transparente para ver os pontos internos
+  else if (!v && raioxAntesMapa === false) { raiox = false; raioxAntesMapa = null; $('#btRaiox').classList.remove('on'); aplicarMateriais(); }
+}
+$('#btMapaSens').onclick = () => { ligarMapaSens(!marcasMapa.ativo); if (marcasMapa.ativo && abaAtual !== 'sensores') abrirAba('sensores'); else if (abaAtual === 'sensores') desenhar.sensores(); };
+marcasMapa.el.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sensor]'); if (!b) return;
+  const s = SENSORES.find((x) => x.id === b.dataset.sensor); sensorMapa = s.id; selecionar(s.comp, { foco: false });
+  if (abaAtual !== 'sensores') abrirAba('sensores');
+  const card = conteudo.querySelector(`.sensor[data-sensor="${s.id}"]`); if (card) { marcarAtivo(card); card.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+});
+function ligarMapaSaude(v) { mapaSaude = v; $('#btSaude').classList.toggle('on', v); if (v && sel.size) selecionar([], { foco: false }); else aplicarMateriais(); }
+$('#btSaude').onclick = () => ligarMapaSaude(!mapaSaude);
+$('#btGeral').onclick = () => vistaGeral();
+fotosDisponiveis(`heli_${CFG.id}`).then((f) => { const b = $('#btFotos'); if (!b || !f.length) return; b.hidden = false; b.onclick = async () => abrirGaleria(await fotosDisponiveis(`heli_${CFG.id}`), CFG.nome); });
+$('#btFoto').onclick = () => fotoHD(renderer, cena, camera, `bell${CFG.id}`, 3840, comp);
+
+/* ---------- Laço de desenho ---------- */
+function ajustar() { const w = vista.clientWidth, h = vista.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); centrarAbaixoDaBarra(camera, w, h, document.getElementById('barra')); if (comp) comp.setSize(w, h); }
+new ResizeObserver(ajustar).observe(vista); ajustar(); vistaGeral(false); controles.update();
+const relogio = new THREE.Clock();
+let erroLaco = false;
+renderer.setAnimationLoop(() => { try { quadro(); } catch (e) { if (!erroLaco) { erroLaco = true; mostrarErro('Erro no desenho 3D: ' + e.message); } } });
+function quadro() {
+  const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime;
+  adaptar(dt);
+  animarVoo(dt);
+  if (voo) {
+    const k = Math.min((performance.now() - voo.t0) / voo.dur, 1), s = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    camera.position.lerpVectors(voo.p0, voo.p1, s); controles.target.lerpVectors(voo.a0, voo.a1, s);
+    if (k >= 1) voo = null;
+  }
+  if (girar) for (const r of heli.rotores) r.obj.rotation[r.eixo] += dt * r.vel;
+  movIPC.atualizar(dt);
+  matDestaque.emissiveIntensity = 0.55 + 0.35 * Math.sin(t * 4);
+  matSaude.cr.emissiveIntensity = 0.6 + 0.5 * Math.sin(t * 6);
+  controles.update();
+  if (ipc.ativo) desenharIPC(); else { if (comp) comp.render(); else renderer.render(cena, camera); }
+  posicionarRotulos(); marcasMapa.atualizar(camera, vista.clientWidth, vista.clientHeight, sensorMapa);
+}
+
+/* =====================================================================
+   Índice de tarefas do MPI
+   ===================================================================== */
+const { compsDeZonas, nomeZonas } = criarZonas(ZC, ZONAS);
+const compsTarefa = (t, g) => t[4] || g.c || compsDeZonas(t[3]);
+const TAREFAS = [];
+for (const ins of MPI.INSPECOES) for (const g of ins.g) for (const t of g.t) TAREFAS.push({ ins, g, t, comps: compsTarefa(t, g) });
+
+/* =====================================================================
+   Interpretação do texto livre ("descrever a manutenção")
+   ===================================================================== */
+const VOCAB = montarVocab(KW);
+
+const analisar = criarAnalisador({ VOCAB, COMPS, TAREFAS });
+
+/* =====================================================================
+   Blocos de HTML reutilizados
+   ===================================================================== */
+const feitos = guarda.ler(K + '_check', {});
+function itemTarefa(x, { check = false, origem = false } = {}) {
+  const [num, desc, acesso, zonas] = x.t, chave = x.ins.id + ':' + num, ok = !!feitos[chave];
+  return `<div class="item${ok && check ? ' feito' : ''}${x.comps.length ? '' : ' semloc'}" data-comps="${x.comps.join(',')}">
+    ${check ? `<input type="checkbox" data-check="${esc(chave)}" ${ok ? 'checked' : ''} title="Marcar como executada">` : '<span></span>'}
+    <div><span class="num">${esc(num)}</span>${origem ? ` <span class="tag lar" data-insp="${x.ins.id}" title="Abrir esta inspeção">${esc(x.ins.nome)}</span>` : ''}
+      <div class="desc">${esc(desc)}</div>
+      <div class="meta"><b>Acesso:</b> ${esc(acesso)} · <b title="${esc(nomeZonas(zonas))}">Zona:</b> <span title="${esc(nomeZonas(zonas))}">${esc(zonas)}</span></div></div></div>`;
+}
+function cartaoComp(id, termos) {
+  const c = COMPS[id];
+  return `<div class="cartao clic" data-comps="${id}"><div class="tit"><span>${esc(c.n)}</span><span class="tag">ATA ${c.ata}</span></div>
+    <div class="sub">Zona ${esc(c.z)} — ${esc(c.o)}</div>${termos ? `<div class="termo">reconhecido: ${[...termos].map(esc).join(', ')}</div>` : ''}</div>`;
+}
+function marcarAtivo(el) { document.querySelectorAll('#conteudo .ativo').forEach((e) => e.classList.remove('ativo')); if (el) el.classList.add('ativo'); }
+
+/* =====================================================================
+   Abas
+   ===================================================================== */
+const conteudo = $('#conteudo');
+const desenhar = {};
+let abaAtual = 'descrever';
+const ABAS = [...document.querySelectorAll('#abas button')].map((b) => b.dataset.aba);
+function abrirAba(nome) {
+  if (!desenhar[nome]) nome = 'descrever';
+  abaAtual = nome;
+  document.querySelectorAll('#abas button').forEach((b) => b.classList.toggle('ativa', b.dataset.aba === nome));
+  if (nome !== 'busca') { $('#busca').value = ''; if (location.hash !== '#' + nome) history.replaceState(null, '', '#' + nome); }
+  desenhar[nome](); conteudo.scrollTop = 0;
+}
+$('#abas').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) abrirAba(b.dataset.aba); });
+window.addEventListener('hashchange', () => { const n = location.hash.slice(1); if (ABAS.includes(n) && n !== abaAtual) abrirAba(n); });
+// Atalhos: Alt+1…9 troca de seção, "/" vai para a busca, Esc limpa o destaque
+window.addEventListener('keydown', (e) => {
+  const digitando = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
+  if (e.altKey && /^[1-9]$/.test(e.key) && ABAS[+e.key - 1]) { e.preventDefault(); abrirAba(ABAS[+e.key - 1]); }
+  else if (e.altKey && e.key === '0') { e.preventDefault(); abrirAba('voo'); }
+  else if (e.key === '/' && !digitando) { e.preventDefault(); $('#busca').focus(); }
+  else if (e.key === 'Escape') { if (e.target.id === 'busca') { e.target.blur(); abrirAba('descrever'); } else if (!digitando) { selecionar([]); marcarAtivo(null); } }
+});
+$('#btPainel').onclick = (e) => { const f = $('#app').classList.toggle('sem-painel'); e.currentTarget.classList.toggle('on', f); e.currentTarget.textContent = f ? 'Mostrar painel' : 'Ocultar painel'; };
+function selo(aba, n, ok = false) { const b = $(`#abas [data-aba="${aba}"] .selo-n`); if (!b) return; b.hidden = !n; b.textContent = n; b.classList.toggle('ok', ok); }
+
+/* ---------- Busca global ---------- */
+const semAcento = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+let INDICE = null, resultados = [];
+function montarIndice() {
+  const it = [];
+  for (const id in COMPS) it.push({ tipo: 'Componente', tit: COMPS[id].n, sub: `ATA ${COMPS[id].ata} · zona ${COMPS[id].z}`, comps: [id], ir: { ficha: id } });
+  for (const x of TAREFAS) it.push({ tipo: 'Tarefa', tit: `${x.t[0]} — ${x.t[1]}`, sub: `${x.ins.nome} · acesso ${x.t[2]} · zona ${x.t[3]}`, comps: x.comps, ir: { insp: x.ins.id } });
+  for (const s of SENSORES) it.push({ tipo: 'Sensor', tit: s.n, sub: s.comp.map((c) => COMPS[c].n).join(' · '), comps: s.comp, ir: { aba: 'sensores' } });
+  for (const g of MPI.LIMITES) for (const i of g.i) it.push({ tipo: 'Limite de vida', tit: `${i[0]} · ${i[1]}`, sub: `${g.s} · ${i[2]}`, comps: i[3] || g.c || [], ir: { aba: 'limites' } });
+  for (const e of MPI.EVENTOS) it.push({ tipo: 'Evento', tit: e.n, sub: e.r, comps: [...new Set(e.a.flatMap((a) => a[1]))], ir: { evento: e.id } });
+  for (const g of ANAC) for (const i of g.i) it.push({ tipo: 'ANAC', tit: i.ref, sub: i.t, comps: i.c || [], ir: { aba: 'anac' } });
+  return it.map((o) => Object.assign(o, { chave: semAcento(o.tit + ' ' + o.sub) }));
+}
+desenhar.busca = () => {
+  INDICE ??= montarIndice();
+  const q = semAcento($('#busca').value).split(/\s+/).filter(Boolean);
+  resultados = q.length ? INDICE.filter((o) => q.every((w) => o.chave.includes(w))).slice(0, 60) : [];
+  conteudo.innerHTML = `<h2>Busca: ${resultados.length}${resultados.length === 60 ? '+' : ''} resultado${resultados.length === 1 ? '' : 's'}</h2>
+    ${resultados.length ? resultados.map((o, i) => `<div class="cartao clic" data-comps="${o.comps.join(',')}"><div class="res-tipo">${o.tipo}</div>
+      <div class="tit"><span>${esc(o.tit)}</span><button class="bt mini" data-res="${i}">Abrir ›</button></div><div class="sub">${esc(o.sub.length > 150 ? o.sub.slice(0, 150) + '…' : o.sub)}</div></div>`).join('')
+    : `<p class="nota">Nada encontrado. ${esc(INFO.buscaDica)}</p>`}`;
+};
+$('#busca').addEventListener('input', (e) => { if (e.target.value.trim()) { abaAtual = 'busca'; document.querySelectorAll('#abas button').forEach((b) => b.classList.remove('ativa')); desenhar.busca(); } else abrirAba('descrever'); });
+
+/* ---------- Descrever ---------- */
+let ultimoTexto = '';
+desenhar.descrever = () => {
+  const salvas = guarda.ler(K + '_tarefas', []);
+  conteudo.innerHTML = `${INFO.ilustrativo ? `<div class="cartao previa"><b>Prévia – ${esc(CFG.nome)}</b><div class="sub">Conteúdo montado com fontes públicas (${esc(CFG.base)}). Coloque os manuais oficiais em <b>manuais/${CFG.id}/</b> para incorporar tarefas, intervalos e procedimentos do fabricante.</div></div>` : ''}
+    <h2>Descreva a manutenção a ser realizada</h2>
+    <textarea id="txt" placeholder="${esc(INFO.exemploTexto)}">${esc(ultimoTexto)}</textarea>
+    <div class="linha"><button class="bt pri" id="btMostrar">Mostrar no modelo</button><button class="bt" id="btSalvar">Salvar tarefa</button><span class="nota">Ctrl+Enter</span></div>
+    <h3>Exemplos</h3><div class="chips">${EXEMPLOS.map((x) => `<span class="chip" data-ex="${esc(x)}">${esc(x)}</span>`).join('')}</div>
+    <div id="resultado"></div>
+    <h3>Tarefas salvas</h3><div id="salvas">${salvas.length ? salvas.map((s, i) => `<div class="cartao clic" data-salva="${i}"><div class="tit"><span>${esc(s)}</span><button class="bt mini" data-apagar="${i}">×</button></div></div>`).join('') : '<p class="nota">Nenhuma tarefa salva neste navegador.</p>'}</div>`;
+  if (ultimoTexto) mostrarAnalise(false);
+};
+function mostrarAnalise(foco = true) {
+  const r = analisar(ultimoTexto), el = $('#resultado'); if (!el) return;
+  selecionar(r.ids, { foco });
+  if (!r.ids.length) { el.innerHTML = `<h3>Onde vamos mexer</h3><p class="nota">Não reconheci nenhum componente nesse texto. Use o nome do sistema ou da peça (ex.: “transmissão”, “rotor de cauda”, “bateria”, “tubo transversal”) ou o capítulo ATA (ex.: “ATA 63”).</p>`; return; }
+  el.innerHTML = `<h3>Onde vamos mexer (${r.ids.length})</h3>${r.ids.map((id) => cartaoComp(id, r.termos[id])).join('')}
+    ${r.rel.length ? `<h3>Tarefas do ${esc(INFO.manual)} relacionadas</h3>${r.rel.map((x) => itemTarefa(x, { origem: true })).join('')}` : ''}`;
+}
+
+/* ---------- Inspeções ---------- */
+let inspAtual = MPI.INSPECOES[1].id;
+desenhar.inspecoes = (id) => {
+  if (id) inspAtual = id;
+  const ins = MPI.INSPECOES.find((i) => i.id === inspAtual), lista = TAREFAS.filter((x) => x.ins === ins);
+  const todos = [...new Set(lista.flatMap((x) => x.comps))];
+  conteudo.innerHTML = `<h2>Inspeções programadas e especiais</h2>
+    <select id="selInsp">${MPI.INSPECOES.map((i) => `<option value="${i.id}" ${i === ins ? 'selected' : ''}>${esc(i.nome)}</option>`).join('')}</select>
+    <p class="nota">${esc(ins.nota)}${ins.dmc ? ` · DMC ${esc(INFO.dmc)}${esc(ins.dmc)}` : ''}</p>
+    <div class="prog"><i id="barraProg"></i></div><p class="nota" id="txtProg"></p>
+    <div class="linha"><button class="bt pri" data-comps="${todos.join(',')}">Mostrar todas as áreas</button><button class="bt" id="btMarcar">Marcar todas</button><button class="bt" id="btZerar">Zerar</button><button class="bt" data-dado="imprimir">Imprimir</button></div>
+    <div class="linha" id="filtroCx"><input type="text" id="filtroInsp" placeholder="Filtrar tarefas (texto, nº, painel, zona)" style="flex:1;min-width:150px"><label class="nota"><input type="checkbox" id="soPend"> só pendentes</label></div>
+    ${ins.prep ? `<h3>Preparação – painéis a remover</h3><p class="nota">${esc(ins.prep)} (${esc(INFO.prepNota)})</p>` : ''}
+    ${ins.g.map((g) => `<h3>${esc(g.s)}</h3>${lista.filter((x) => x.g === g).map((x) => itemTarefa(x, { check: true })).join('')}`).join('')}
+    <h3>Itens gerais (toda inspeção)</h3>${MPI.GERAL.map((t, i) => { const k = ins.id + ':G' + i; return `<div class="item${feitos[k] ? ' feito' : ''}"><input type="checkbox" data-check="${k}" ${feitos[k] ? 'checked' : ''}><div class="desc">${esc(t)}</div></div>`; }).join('')}
+    <p class="nota">${esc(INFO.tolerancia)}</p>`;
+  progresso();
+};
+function progresso() {
+  const cs = conteudo.querySelectorAll('[data-check]'); if (!cs.length || !$('#barraProg')) return;
+  const n = [...cs].filter((c) => c.checked).length;
+  $('#barraProg').style.width = (100 * n / cs.length) + '%'; $('#txtProg').textContent = `${n} de ${cs.length} itens marcados (salvo neste navegador)`;
+  selo('inspecoes', n && n < cs.length ? cs.length - n : n === cs.length ? '✓' : 0, n === cs.length);
+}
+function filtrarInspecao() {
+  const q = semAcento($('#filtroInsp')?.value || '').split(/\s+/).filter(Boolean), pend = $('#soPend')?.checked;
+  for (const it of conteudo.querySelectorAll('.item')) {
+    const txt = semAcento(it.textContent), feito = it.querySelector('[data-check]')?.checked;
+    it.classList.toggle('oculto', !q.every((w) => txt.includes(w)) || (pend && feito));
+  }
+  for (const h of conteudo.querySelectorAll('h3')) { // esconde títulos de grupos sem itens visíveis
+    let n = h.nextElementSibling, vis = false, tem = false;
+    while (n && n.tagName !== 'H3') { if (n.classList.contains('item')) { tem = true; if (!n.classList.contains('oculto')) vis = true; } n = n.nextElementSibling; }
+    h.classList.toggle('oculto', tem && !vis);
+  }
+}
+
+/* ---------- Controle: cálculo compartilhado (tela, selo do menu e exportação) ---------- */
+const lerCtrl = () => Object.assign({ mat: '', tsn: 0, media: 30, ult: {}, extra: [] }, guarda.ler(K + '_ctrl', {}));
+function linhasControle(st) {
+  return [...CONTROLE, ...st.extra].sort((a, b) => a.h - b.h).map((l) => {
+    const ult = +st.ult[l.id] || 0, prox = ult + l.h, resta = prox - st.tsn, tol = l.origem === 'mpi' ? Math.min(l.h * (INFO.tolPct || 0), INFO.tolMax ?? 100) : 0;
+    const sit = st.ult[l.id] == null ? ['', 'INFORMAR ÚLTIMA EXECUÇÃO'] : resta < -tol ? ['er', 'VENCIDA'] : resta < 0 ? ['al', 'NA TOLERÂNCIA'] : resta <= l.h * 0.1 ? ['al', 'PRÓXIMA'] : ['ok', 'EM DIA'];
+    return { l, ult, prox, resta, sit, uso: Math.max(0, Math.min(1, (st.tsn - ult) / l.h)) };
+  });
+}
+function seloControle() { selo('controle', linhasControle(lerCtrl()).filter((x) => x.sit[0] === 'er' || x.sit[0] === 'al').length); }
+
+/* ---------- Controle por horas ---------- */
+desenhar.controle = () => {
+  const st = lerCtrl(), hoje = new Date();
+  seloControle();
+  const corpo = linhasControle(st).map(({ l, ult, prox, resta, sit, uso }) => {
+    const prev = st.media > 0 && resta > 0 ? new Date(hoje.getTime() + (resta / st.media) * 30 * 864e5).toLocaleDateString('pt-BR') : '—';
+    return `<div class="cartao"><div class="tit"><span>${esc(l.nome)}</span><span class="tag ${sit[0]}">${sit[1]}</span></div>
+      <div class="sub">${l.origem === 'mpi' ? esc(INFO.manual) : 'Definida pelo operador' + (l.obs ? ' · ' + esc(l.obs) : '')} · vence com <b>${prox.toFixed(1)} h</b> · restam <b>${resta.toFixed(1)} h</b> · previsão ${prev}</div>
+      <div class="prog ${sit[0] === 'ok' ? '' : sit[0]}"><i style="width:${uso * 100}%"></i></div>
+      <div class="linha"><span class="nota">Última execução (h):</span><input type="number" step="0.1" style="width:96px" data-ult="${l.id}" value="${st.ult[l.id] ?? ''}" placeholder="—">
+        <button class="bt mini" data-feita="${l.id}">Feita agora</button>${l.insp ? `<button class="bt mini" data-insp="${l.insp}">Ver tarefas</button>` : ''}${l.extra ? `<button class="bt mini" data-remover="${l.id}">Remover</button>` : ''}</div></div>`;
+  }).join('');
+  conteudo.innerHTML = `<h2>Controle de manutenção por horas de voo</h2>
+    <div class="grade"><div><label>Matrícula</label><input type="text" id="cMat" value="${esc(st.mat)}" placeholder="PR-XXX"></div>
+      <div><label>Horas totais (célula)</label><input type="number" step="0.1" id="cTsn" value="${st.tsn}"></div>
+      <div><label>Média h/mês</label><input type="number" step="1" id="cMedia" value="${st.media}"></div></div>
+    <p class="nota">A previsão de data usa a média de horas voadas por mês (manutenção preditiva de calendário).${INFO.tolPct ? ` Tolerância de ${INFO.tolPct * 100}% (máx. ${INFO.tolMax ?? 100} h) só nas inspeções do ${esc(INFO.manual)}.` : ''}</p>
+    ${corpo}
+    <h3>Adicionar intervalo do operador</h3>
+    <div class="linha"><input type="text" id="nNome" placeholder="Nome (ex.: lavagem de compressor)" style="flex:1;min-width:150px"><input type="number" id="nHoras" placeholder="horas" style="width:90px"><button class="bt" id="btAdd">Adicionar</button></div>
+    <p class="nota">${esc(INFO.notaControle)}</p>
+    ${MPI.RIN.length ? `<h3>Controle por RIN (trem de pouso de esquis)</h3>
+    <div class="grade"><div><label>Pousos normais</label><input type="number" id="rN" value="${st.rin?.[0] ?? 0}"></div><div><label>Pousos corridos</label><input type="number" id="rC" value="${st.rin?.[1] ?? 0}"></div><div><label>Autorrotações</label><input type="number" id="rA" value="${st.rin?.[2] ?? 0}"></div></div>
+    ${MPI.RIN.map((r) => { const v = r.f[0] * (st.rin?.[0] || 0) + r.f[1] * (st.rin?.[1] || 0) + r.f[2] * (st.rin?.[2] || 0), u = Math.min(1, v / r.lim);
+      return `<div class="cartao clic" data-comps="${r.id}"><div class="tit"><span>${esc(r.n)}</span><span class="tag ${u >= 1 ? 'er' : u > 0.9 ? 'al' : 'ok'}">${v.toLocaleString('pt-BR')} / ${r.lim.toLocaleString('pt-BR')} RIN</span></div>
+        <div class="sub">+${r.f[0]} por pouso normal · +${r.f[1]} por pouso corrido · +${r.f[2]} por autorrotação</div><div class="prog ${u >= 1 ? 'er' : u > 0.9 ? 'al' : ''}"><i style="width:${u * 100}%"></i></div></div>`; }).join('')}` : ''}`;
+};
+function salvarControle(mut) { const st = lerCtrl(); mut(st); guarda.salvar(K + '_ctrl', st); desenhar.controle(); }
+
+/* ---------- Limites de aeronavegabilidade ---------- */
+desenhar.limites = () => {
+  const ex = INFO.limitesExtra;
+  conteudo.innerHTML = `<h2>${esc(INFO.tituloLimites)}</h2>
+    <p class="nota">${esc(INFO.notaLimites)}</p>
+    ${MPI.LIMITES.map((g) => `<h3>${esc(g.s)}</h3><table><tr><th>Peça</th><th>P/N</th><th>Vida</th></tr>${g.i.map((i) => `<tr class="clic" data-comps="${(i[3] || g.c || []).join(',')}"><td>${esc(i[0])}</td><td class="pn">${esc(i[1])}</td><td><b>${esc(i[2])}</b></td></tr>`).join('')}</table>`).join('')}
+    ${ex ? `<h3>${esc(ex.s)}</h3><table>${ex.i.map((i) => `<tr class="clic" data-comps="${(i[3] || []).join(',')}"><td>${esc(i[0])}</td><td class="pn">${esc(i[1])}</td><td><b>${esc(i[2])}</b></td></tr>`).join('')}</table>` : ''}
+    ${INFO.notaRin ? `<p class="nota">${esc(INFO.notaRin)}</p>` : ''}`;
+};
+
+/* ---------- Eventos (inspeções condicionais) ---------- */
+let eventoAtual = MPI.EVENTOS[0].id;
+desenhar.eventos = () => {
+  const ev = MPI.EVENTOS.find((e) => e.id === eventoAtual), todos = [...new Set(ev.a.flatMap((a) => a[1]))];
+  conteudo.innerHTML = `<h2>Inspeções condicionais (após evento)</h2>
+    <select id="selEvento">${MPI.EVENTOS.map((e) => `<option value="${e.id}" ${e === ev ? 'selected' : ''}>${esc(e.n)}</option>`).join('')}</select>
+    <p class="nota">${esc(ev.r)}</p>
+    <div class="linha"><button class="bt pri" data-comps="${todos.join(',')}">Mostrar todas as áreas afetadas</button></div>
+    <h3>Áreas a inspecionar</h3>
+    ${ev.a.map((a) => `<div class="cartao clic" data-comps="${a[1].join(',')}"><div class="tit"><span>${esc(a[0])}</span></div><div class="sub">${esc(a[2])}</div></div>`).join('')}
+    <p class="nota">${esc(INFO.notaEventos)}</p>`;
+};
+
+/* ---------- ANAC ---------- */
+desenhar.anac = () => {
+  conteudo.innerHTML = `<h2>Regulamentação ANAC e controle de manutenção</h2>
+    <p class="nota">Resumo orientativo para treinamento – não é texto legal. Consulte sempre a emenda vigente dos RBAC e das Instruções Suplementares em anac.gov.br.</p>
+    ${ANAC.map((g) => `<h3>${esc(g.g)}</h3>${g.i.map((i) => `<div class="cartao${i.c ? ' clic' : ''}" ${i.c ? `data-comps="${i.c.join(',')}"` : ''}><div class="tit"><span>${esc(i.ref)}</span>${i.l ? `<span class="tag lar" data-insp="${i.l}">ver inspeção</span>` : ''}</div><div class="sub">${esc(i.t)}</div></div>`).join('')}`).join('')}`;
+};
+
+/* ---------- Sistemas ---------- */
+ligarVisor(document);
+desenhar.sistemas = (idSel) => {
+  const ids = Object.keys(COMPS).sort((a, b) => COMPS[a].ata.localeCompare(COMPS[b].ata) || COMPS[a].n.localeCompare(COMPS[b].n));
+  let ficha = '';
+  if (idSel) {
+    const rel = TAREFAS.filter((x) => x.comps.includes(idSel));
+    ficha = `<h2>Ficha do componente</h2>${cartaoComp(idSel)}
+      ${COMPS[idSel].motor ? `<div class="linha"><a class="bt pri" href="motor.html?m=${CFG.id}">Abrir o motor 3D (${esc(CFG.motor)}) ›</a></div>` : ''}
+      ${blocoReferencias(COMPONENTES[idSel], CFG.id)}
+      <h3>Tarefas do ${esc(INFO.manual)} neste componente (${rel.length})</h3>${rel.length ? rel.slice(0, 40).map((x) => itemTarefa(x, { origem: true })).join('') : '<p class="nota">Nenhuma tarefa específica cadastrada nesta demonstração.</p>'}`;
+  }
+  conteudo.innerHTML = `${ficha}<h2 style="margin-top:${idSel ? 18 : 0}px">Todos os sistemas (por capítulo ATA)</h2>
+    ${ids.map((id) => `<div class="item${id === idSel ? ' ativo' : ''}" data-ficha="${id}"><span class="tag">ATA ${COMPS[id].ata}</span><div class="desc">${esc(COMPS[id].n)}<div class="meta">Zona ${esc(COMPS[id].z)}</div></div></div>`).join('')}`;
+};
+
+/* ---------- Sensores IoT (monitoramento de condição) ---------- */
+const iot = guarda.ler(K + '_iot', { modo: 'sim', url: 'api/telemetria.php' });
+const leit = {};          // id -> { v, t (ms), hist: [], amo: [{t (s), v}] }
+let ANALISE = {}, SAUDE_PRED = {}; // análise preditiva por sensor e por componente (preditiva.js)
+const HORIZONTE = () => (iot.modo === 'sim' ? 120 : 6 * 3600); // aviso de tendência: 2 min na simulação acelerada, 6 h com sensores reais
+const falha = new Set();  // sensores com falha simulada
+let conexao = 'simulação';
+// Cenários de teste (simulação): ciclo de voo e estresse progressivo até a falha
+let cenario = 'normal', cenT0 = Date.now(), cenLog = [], cenEstado = {};
+const FASES_VOO = [[0, 'Partida e aquecimento', 0.35], [8, 'Pairado', 0.85], [16, 'Decolagem (potência máxima)', 1.0], [24, 'Cruzeiro', 0.8], [44, 'Descida', 0.5], [52, 'Aproximação e pouso', 0.85], [58, 'Corte do motor', 0.3]];
+const CICLO_VOO = 62;
+const pesoSensor = (id) => { let h = 7; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return 0.8 + (h % 1000) / 1000 * 0.45; };
+function faseVoo(t) { const tt = t % CICLO_VOO; let f = FASES_VOO[0]; for (const x of FASES_VOO) if (tt >= x[0]) f = x; return f; }
+const tempoCen = () => (Date.now() - cenT0) / 1000;
+const cargaEstresse = () => Math.min(1.75, tempoCen() / 50);
+const cenRapido = new Set(); // sensores com falha do teste de voo (sobem rápido)
+function falhaDoVoo(s) {
+  if (!vooSim) return null;
+  const tt = tempoCen() % CICLO_VOO, f = vooFalha;
+  if (f === 'pouso' && s.un === 'g' && tt > 52.5 && tt < 56) return 2.9;
+  if (f === 'otq' && s.id === 'torque_mastro' && tt > 16.5 && tt < 23.5) return 117;
+  if (f === 'chip' && s.id === 'chip_trans' && tt > 30) return 1;
+  if (f === 'vib' && s.id === 'vib_rp' && tt > 26 && tt < 44) return s.cr * 1.2;
+  if (f === 'motor' && sTempVoo && s.id === sTempVoo.id && tt > 20 && tt < 40) return sTempVoo.cr + 30;
+  return null;
+}
+function alvoCenario(s) {
+  const fv = falhaDoVoo(s); if (fv !== null) { cenRapido.add(s.id); return fv; }
+  cenRapido.delete(s.id);
+  if (cenario === 'voo') {
+    const [, nome, L] = faseVoo(tempoCen());
+    if (s.tipo === 'bool') return 0;
+    if (s.un === 'g') return /pouso/i.test(nome) ? 1.45 : 1.0;
+    if (s.tipo === 'max') return Math.max(0, s.base + (s.al - s.base) * (L - 0.8) * 1.3);
+    return s.base;
+  }
+  if (cenario === 'degradacao') { // desgaste lento em poucos componentes: a análise preditiva avisa antes de chegar ao alerta
+    if (!DEGRADA.has(s.id)) return s.tipo === 'bool' ? 0 : s.base;
+    const D = Math.min(1.2, tempoCen() / 240) * (0.85 + 0.3 * (pesoSensor(s.id) - 0.8) / 0.45);
+    if (s.tipo === 'bool') return D > 1.05 ? 1 : 0;
+    return s.tipo === 'max' ? s.base + (s.cr - s.base) * D : s.base - (s.base - s.cr) * D;
+  }
+  if (cenario === 'estresse') {
+    const S = cargaEstresse() * pesoSensor(s.id);
+    if (s.tipo === 'bool') return S > 1.3 ? 1 : 0;
+    if (s.tipo === 'max') return s.base + (s.cr - s.base) * S;
+    return s.base - (s.base - s.cr) * S;
+  }
+  return null;
+}
+// sensores que degradam no cenário de desgaste lento: os três de maior peso entre os contínuos (determinístico por aeronave)
+const DEGRADA = new Set(SENSORES.filter((s) => s.tipo !== 'bool').sort((a, b) => pesoSensor(b.id) - pesoSensor(a.id)).slice(0, 3).map((s) => s.id));
+let cenPrev = {}; // sensor -> instante (s do cenário) em que a análise preditiva marcou tendência pela primeira vez
+function reiniciarCenario(c) { cenario = c; cenT0 = Date.now(); cenLog = []; cenEstado = {}; cenPrev = {}; }
+// em modo "sensores reais", quem ainda não enviou leitura aparece como SEM SINAL
+function zerarLeituras() { for (const s of SENSORES) leit[s.id] = { v: s.base, t: iot.modo === 'sim' ? Date.now() : 0, hist: [], amo: [] }; ANALISE = {}; SAUDE_PRED = {}; }
+zerarLeituras();
+
+function estado(s) {
+  const l = leit[s.id];
+  if (Date.now() - l.t > 30000) return 'sem';
+  if (s.tipo === 'bool') return l.v >= 1 ? 'cr' : 'ok';
+  if (s.tipo === 'max') return l.v >= s.cr ? 'cr' : l.v >= s.al ? 'al' : 'ok';
+  return l.v <= s.cr ? 'cr' : l.v <= s.al ? 'al' : 'ok';
+}
+const ROT = { ok: ['ok', 'NORMAL'], al: ['al', 'ALERTA'], cr: ['er', 'CRÍTICO'], sem: ['', 'SEM SINAL'] };
+const fmt = (s, v) => (s.tipo === 'bool' ? (v >= 1 ? 'DETECTADO' : 'limpo') : v.toLocaleString('pt-BR', { maximumFractionDigits: s.base < 2 ? 2 : 1 }) + ' ' + s.un);
+function registrar(s, v, t = Date.now()) { const l = leit[s.id]; l.v = v; l.t = t; l.hist.push(v); if (l.hist.length > 60) l.hist.shift(); l.amo.push({ t: t / 1000, v }); if (l.amo.length > 600) l.amo.shift(); }
+
+function passoSimulado() {
+  for (const s of SENSORES) {
+    const l = leit[s.id];
+    const ac = alvoCenario(s);
+    if (s.tipo === 'bool') { registrar(s, falha.has(s.id) ? 1 : (ac ?? 0)); continue; }
+    const alvo = falha.has(s.id) ? s.cr + (s.cr - s.al) * 0.35 * (s.tipo === 'max' ? 1 : -1) : (ac ?? s.base);
+    registrar(s, l.v + (alvo - l.v) * (cenRapido.has(s.id) ? 0.65 : falha.has(s.id) ? 0.35 : 0.12) + (Math.random() - 0.5) * s.ruido);
+  }
+}
+async function passoRemoto() {
+  try {
+    const r = await fetch(iot.url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json(), agora = d.agora || Date.now() / 1000;
+    for (const s of SENSORES) { const x = d.leituras?.[s.id]; if (x && typeof x.v === 'number') registrar(s, x.v, Date.now() - (agora - x.t) * 1000); }
+    conexao = 'recebendo de ' + iot.url;
+  } catch (e) { conexao = 'sem conexão com ' + iot.url + ' (' + e.message + ')'; }
+}
+function avaliar() {
+  const pior = {}, ordem = { sem: 0, ok: 1, an: 2, te: 3, al: 4, cr: 5 };
+  const op = { horizonte: HORIZONTE() };
+  for (const s of SENSORES) ANALISE[s.id] = estado(s) === 'sem' ? null : analisarSensor(s, leit[s.id].amo, op);
+  SAUDE_PRED = saudeComponentes(SENSORES, ANALISE);
+  for (const s of SENSORES) {
+    const lim = estado(s), a = ANALISE[s.id], e = lim !== 'ok' || !a ? lim : a.estado === 'tendencia' ? 'te' : a.estado === 'anomalia' ? 'an' : 'ok';
+    for (const c of s.comp) if (!pior[c] || ordem[e] > ordem[pior[c]]) pior[c] = e;
+  }
+  if (cenario !== 'normal') for (const s of SENSORES) { // registra a ordem em que os sensores saem da faixa
+    const e = estado(s), ant = cenEstado[s.id];
+    if (e === 'ok' && ANALISE[s.id]?.estado === 'tendencia' && cenPrev[s.id] === undefined) cenPrev[s.id] = tempoCen();
+    const antec = cenPrev[s.id] === undefined ? 'sem aviso prévio' : `previsto ${Math.round(tempoCen() - cenPrev[s.id])} s antes`;
+    if ((e === 'al' || e === 'cr') && e !== ant && !(ant === 'cr' && e === 'al')) cenLog.push({ t: tempoCen(), s, e, fase: cenario === 'voo' ? faseVoo(tempoCen())[1] : cenario === 'degradacao' ? antec : `carga ${Math.round(cargaEstresse() * 100)}% · ${antec}` });
+    cenEstado[s.id] = e;
+  }
+  const mudou = JSON.stringify(pior) !== JSON.stringify(saudeComp);
+  saudeComp = pior;
+  if (mudou && mapaSaude && !sel.size) aplicarMateriais();
+  const n = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))).length, bt = $('#btSaude');
+  const np = SENSORES.filter((s) => estado(s) === 'ok' && ANALISE[s.id] && ['tendencia', 'anomalia'].includes(ANALISE[s.id].estado)).length;
+  bt.textContent = n ? `Saúde · ${n} alerta${n > 1 ? 's' : ''}` : np ? `Saúde · ${np} previsto${np > 1 ? 's' : ''}` : 'Saúde';
+  bt.classList.toggle('aviso', (n > 0 || np > 0) && !mapaSaude);
+  selo('sensores', n);
+}
+function curva(h, s) {
+  if (h.length < 2) return '';
+  const lo = Math.min(...h, s.tipo === 'min' ? s.cr : s.base), hi = Math.max(...h, s.tipo === 'max' ? s.cr : s.base), f = hi - lo || 1;
+  return h.map((v, i) => `${(i * 100 / 59).toFixed(1)},${(22 - (v - lo) / f * 20).toFixed(1)}`).join(' ');
+}
+function atualizarSensores() {
+  if (abaAtual !== 'sensores') return;
+  for (const s of SENSORES) {
+    const c = conteudo.querySelector(`[data-sensor="${s.id}"]`); if (!c) continue;
+    const e = estado(s), [cls, txt] = ROT[e];
+    c.querySelector('.valor').textContent = fmt(s, leit[s.id].v);
+    const tag = c.querySelector('.tag'); tag.className = 'tag ' + cls; tag.textContent = txt;
+    c.querySelector('polyline').setAttribute('points', curva(leit[s.id].hist, s));
+    c.classList.toggle('critico', e === 'cr'); c.classList.toggle('alerta', e === 'al');
+    const a = ANALISE[s.id], p = c.querySelector('.pred');
+    if (p) p.textContent = !a ? '' : s.tipo === 'bool' ? `Saúde ${a.saude}` : `Saúde ${a.saude} · tendência ${a.inclinacao >= 0 ? '+' : ''}${(a.inclinacao * 3600).toLocaleString('pt-BR', { maximumFractionDigits: s.base < 2 ? 3 : 1 })} ${s.un}/h`
+      + (e === 'ok' && a.tAlerta !== null ? ` · alerta em ${formatarTempo(a.tAlerta)}` : '') + (a.tCritico !== null && e !== 'cr' ? ` · crítico em ${formatarTempo(a.tCritico)}` : '')
+      + (e === 'ok' && a.estado === 'tendencia' ? ' · TENDÊNCIA DE FALHA' : e === 'ok' && a.estado === 'anomalia' ? ` · ANOMALIA (z = ${a.z.toFixed(1).replace('.', ',')})` : '');
+    if (p) p.style.color = e === 'ok' && a && a.estado === 'tendencia' ? '#3fa7ff' : e === 'ok' && a && a.estado === 'anomalia' ? '#b26bff' : '';
+  }
+  const elP = $('#iotPrev');
+  if (elP) {
+    const pv = previsoes(SENSORES, ANALISE).slice(0, 8), an = SENSORES.filter((s) => estado(s) === 'ok' && ANALISE[s.id]?.estado === 'anomalia'), chave = pv.map((x) => x.s.id + Math.round(x.a.tAlerta / 5)).join() + an.map((s) => s.id).join();
+    if (elP.dataset.chave !== chave) {
+      elP.dataset.chave = chave;
+      elP.innerHTML = pv.length || an.length ? `<table><tr><th>Sensor / componente</th><th>Saúde</th><th>Alerta em</th><th>Crítico em</th></tr>${pv.map(({ s, a }) => `<tr class="clic" data-comps="${s.comp.join(',')}"><td>${esc(s.n)}<div class="nota" style="margin:0">${s.comp.map((c) => esc(COMPS[c].n)).join(' · ')} · ${esc(s.dica)}</div></td><td>${a.saude}</td><td><b style="color:#3fa7ff">${formatarTempo(a.tAlerta)}</b></td><td>${formatarTempo(a.tCritico)}</td></tr>`).join('')}${an.map((s) => `<tr class="clic" data-comps="${s.comp.join(',')}"><td>${esc(s.n)}<div class="nota" style="margin:0">Leitura fora do comportamento normal (z = ${ANALISE[s.id].z.toFixed(1).replace('.', ',')}) ainda dentro da faixa · ${esc(s.dica)}</div></td><td>${ANALISE[s.id].saude}</td><td colspan="2" style="color:#b26bff">anomalia</td></tr>`).join('')}</table>`
+        : '<p class="nota">Nenhuma falha prevista: nenhum sensor com tendência de sair da faixa no horizonte de ' + formatarTempo(HORIZONTE()) + '.</p>';
+    }
+  }
+  const elC = $('#iotConexao'); if (elC) elC.textContent = conexao;
+  const elF = $('#iotFase');
+  if (elF) elF.textContent = cenario === 'voo' ? `Fase: ${faseVoo(tempoCen())[1]} · carga ${Math.round(faseVoo(tempoCen())[2] * 100)}% · ${Math.floor(tempoCen() % CICLO_VOO)} s de ${CICLO_VOO} s`
+    : cenario === 'degradacao' ? `Desgaste lento em ${[...DEGRADA].map((id) => SENSORES.find((x) => x.id === id).n).join(', ')} · ${Math.floor(tempoCen())} s (a previsão deve avisar antes do alerta)`
+    : cenario === 'estresse' ? `Carga aplicada: ${Math.round(cargaEstresse() * 100)}% da faixa até o limite crítico (100% = crítico no sensor médio) · ${Math.floor(tempoCen())} s` : 'Operação normal: leituras em torno do valor de referência.';
+  const elL = $('#iotLog');
+  if (elL && elL.dataset.n !== String(cenLog.length)) {
+    elL.dataset.n = cenLog.length;
+    elL.innerHTML = cenario === 'normal' ? '' : cenLog.length ? `<table><tr><th>t (s)</th><th>Sensor / componente</th><th>Estado</th><th>${cenario === 'voo' ? 'Fase' : cenario === 'degradacao' ? 'Antecedência da previsão' : 'Carga · antecedência'}</th></tr>${cenLog.slice(-40).map((x) => `<tr class="clic" data-comps="${x.s.comp.join(',')}"><td>${x.t.toFixed(0)}</td><td>${esc(x.s.n)}<div class="nota" style="margin:0">${x.s.comp.map((c) => esc(COMPS[c].n)).join(' · ')}</div></td><td><span class="tag ${ROT[x.e][0]}">${ROT[x.e][1]}</span></td><td>${esc(x.fase)}</td></tr>`).join('')}</table>`
+      : '<p class="nota">Nenhum sensor saiu da faixa até agora.</p>';
+  }
+  const alertas = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))), elA = $('#iotAlertas'), chave = alertas.map((s) => s.id + estado(s)).join();
+  if (elA && elA.dataset.chave !== chave) {
+    elA.dataset.chave = chave;
+    elA.innerHTML = alertas.length ? alertas.map((s) => {
+      const chave = new Set(normalizar(s.n + ' ' + s.dica).filter((w) => w.length >= 4));
+      const rel = TAREFAS.filter((x) => x.comps.some((c) => s.comp.includes(c)))
+        .map((x) => ({ x, p: normalizar(x.t[1]).filter((w) => chave.has(w)).length })).sort((a, b) => b.p - a.p).slice(0, 3).map((o) => o.x);
+      return `<div class="cartao clic ${estado(s) === 'cr' ? 'critico' : 'alerta'}" data-comps="${s.comp.join(',')}"><div class="tit"><span>${esc(s.n)}</span><span class="tag ${ROT[estado(s)][0]}">${ROT[estado(s)][1]}</span></div>
+        <div class="sub"><b>Ação sugerida:</b> ${esc(s.dica)}</div></div>${rel.map((x) => itemTarefa(x, { origem: true })).join('')}`;
+    }).join('') : '<p class="nota">Nenhum alerta ativo: todos os sensores dentro da faixa.</p>';
+  }
+}
+setInterval(async () => { if (vooSim && (performance.now() - vooSim.t0) / 1000 >= CICLO_VOO) pararVoo(true); if (iot.modo === 'sim') { passoSimulado(); conexao = 'simulação (dados gerados no navegador)'; } else await passoRemoto(); avaliar(); atualizarSensores(); }, 1000);
+
+desenhar.sensores = () => {
+  conteudo.innerHTML = `<h2>Sensores IoT – monitoramento de condição</h2>
+    <p class="nota">Cada sensor está ligado a um componente do modelo. Quando sai da faixa, o componente muda de cor no mapa de saúde e as tarefas relacionadas do ${esc(INFO.manual)} aparecem abaixo.</p>
+    <div class="linha"><button class="bt pri" id="btMapa">${mapaSaude ? 'Desligar mapa de saúde' : 'Ver mapa de saúde no 3D'}</button></div>
+    <h3>Mapa de onde colocar os sensores</h3>
+    <p class="nota">Cada sensor tem um número; no 3D o número fica sobre o componente onde o sensor é instalado (com o revestimento transparente para ver os pontos internos). Clique num número para ir ao cartão.</p>
+    <div class="linha"><button class="bt pri" id="btMapaNumerado">${marcasMapa.ativo ? 'Esconder o mapa numerado' : 'Mostrar o mapa numerado no 3D'}</button><button class="bt" data-dado="folha">Folha de instalação (imprimir / PDF)</button></div>
+    <div class="legenda">${LEGENDA_MAPA.map(([n, c]) => `<span><i style="background:#${c.toString(16).padStart(6, '0')}"></i>${esc(n)}</span>`).join('')}</div>
+    <h3>Origem dos dados</h3>
+    <div class="linha"><select id="iotModo" style="flex:1;min-width:160px"><option value="sim" ${iot.modo === 'sim' ? 'selected' : ''}>Simulação (demonstração)</option><option value="http" ${iot.modo === 'http' ? 'selected' : ''}>Sensores reais (servidor de telemetria)</option></select>
+      <input type="text" id="iotUrl" value="${esc(iot.url)}" style="flex:1;min-width:150px" ${iot.modo === 'sim' ? 'disabled' : ''} title="Endereço que devolve as leituras em JSON"></div>
+    <p class="nota">Estado: <span id="iotConexao">${esc(conexao)}</span></p>
+    ${iot.modo === 'sim' ? `<h3>Teste em modelo (cenário)</h3>
+    <div class="linha"><select id="iotCenario" style="flex:1;min-width:180px"><option value="normal" ${cenario === 'normal' ? 'selected' : ''}>Operação normal</option><option value="voo" ${cenario === 'voo' ? 'selected' : ''}>Ciclo de voo: partida → pairado → decolagem → cruzeiro → pouso → corte</option><option value="degradacao" ${cenario === 'degradacao' ? 'selected' : ''}>Desgaste lento de alguns componentes (teste da previsão)</option><option value="estresse" ${cenario === 'estresse' ? 'selected' : ''}>Estresse progressivo dos componentes (até falhar)</option></select><button class="bt" id="btCenario">Reiniciar</button></div>
+    <p class="nota" id="iotFase"></p>
+    <p class="nota">No estresse, a carga sobe em todos os sensores ao mesmo tempo; cada componente tem margem diferente, então a tabela abaixo mostra a <b>ordem em que eles chegam ao alerta e ao crítico</b>. Ligue o mapa de saúde para ver no 3D. O teste detalhado do motor (ignição, voo e estresse) fica na página <a href="motor.html?m=${CFG.id}">Motor 3D</a>.</p>
+    <div id="iotLog"></div>` : ''}
+    <h3>Próximas falhas previstas (manutenção preditiva)</h3>
+    <p class="nota">A análise preditiva suaviza cada leitura, calcula a tendência (mínimos quadrados) e estima quanto falta para o alerta e o crítico. No mapa de saúde: <b style="color:#46c08a">verde</b> normal · <b style="color:#3fa7ff">azul</b> tendência de falha (ainda na faixa) · <b style="color:#b26bff">roxo</b> anomalia · <b style="color:#f0b83c">amarelo</b> alerta · <b style="color:#ef5d5d">vermelho</b> crítico.</p>
+    <div id="iotPrev"></div>
+    <div class="linha"><button class="bt" data-dado="csv-pred">Exportar dados dos sensores e previsões (CSV)</button></div>
+    <h3>Alertas e manutenção indicada</h3><div id="iotAlertas"></div>
+    <h3>Leituras ao vivo – ${SENSORES.length} sensores em ${Object.keys(COMPS).length} componentes</h3>
+    ${SENSORES.map((s, i) => `${i === 0 || SENSORES[i - 1].grupo !== s.grupo ? `<h3>${esc(s.grupo)}</h3>` : ''}<div class="cartao clic sensor" data-sensor="${s.id}" data-comps="${s.comp.join(',')}">
+      <div class="tit"><span><b class="num-sen" style="--c:#${corSensor(s).toString(16).padStart(6, '0')}">${NUM_SENS.get(s.id)}</b> ${esc(s.n)}</span><span class="tag">—</span></div>
+      <div class="leitura"><span class="valor">—</span><svg viewBox="0 0 100 24" preserveAspectRatio="none"><polyline points="" /></svg></div>
+      <div class="pred nota" style="margin:2px 0 0"></div>
+      <div class="sub">${s.comp.map((c) => esc(COMPS[c].n)).join(' · ')}${s.tipo === 'bool' ? '' : ` · alerta ${s.al} · crítico ${s.cr} ${esc(s.un)}`}
+        ${iot.modo === 'sim' ? `<button class="bt mini" data-falha="${s.id}">${falha.has(s.id) ? 'Normalizar' : 'Simular falha'}</button>` : ''}</div></div>`).join('')}
+    <p class="nota">As faixas de alerta e crítico são ilustrativas, apenas para a demonstração. Em uso real, configure-as em <b>sensores.js</b> conforme os limites do fabricante. Envio de sensores reais: veja o README (api/telemetria.php).</p>
+    ${htmlCatalogoSensores()}`;
+  atualizarSensores();
+};
+
+/* ---------- Catálogo de modelos de sensores por área, zona e componente (catalogo_sensores.js) ---------- */
+function htmlCatalogoSensores() {
+  const cat = catalogoPorArea(SENSORES, COMPS, ZONAS), res = resumoTecnologias(SENSORES);
+  const ficha = (id) => { const t = TECNOLOGIAS[id]; return `<b>${esc(t.nome)}</b> · ${esc(t.faixa)} · ${esc(t.saida)}`; };
+  return `<h2 style="margin-top:22px">Catálogo de modelos de sensores por área</h2>
+    <p class="nota">Para cada ponto de medição: a tecnologia de sensor indicada, a faixa, a saída, a fixação e o equivalente de bancada para o protótipo da pesquisa. Valores típicos de engenharia; instalação em aeronave exige projeto aprovado (ANAC) e qualificação ambiental (RTCA DO-160).</p>
+    <div class="linha"><button class="bt" data-dado="csv-cat">Exportar o catálogo (CSV)</button></div>
+    <h3>Tecnologias usadas nesta aeronave</h3>
+    <table><tr><th>Tecnologia</th><th>Pontos</th><th>Grandeza</th><th>Custo</th></tr>${res.map((x) => `<tr><td><details><summary>${esc(x.nome)}</summary><div class="nota" style="margin:4px 0">${esc(x.principio)}<br><b>Faixa:</b> ${esc(x.faixa)} · <b>Amostragem:</b> ${esc(x.amostragem)}<br><b>Saída:</b> ${esc(x.saida)} · <b>Condicionamento:</b> ${esc(x.condicionamento)}<br><b>Fixação:</b> ${esc(x.fixacao)} · <b>Ambiente:</b> ${esc(x.ambiente)}<br><b>Para a manutenção preditiva:</b> ${esc(x.preditiva)}<br><b>Protótipo de bancada:</b> ${esc(x.bancada)}</div></details></td><td>${x.n}</td><td>${esc(x.grandeza)}</td><td>${esc(x.custo)}</td></tr>`).join('')}</table>
+    <h3>Por área, zona e componente</h3>
+    ${cat.map((A) => `<details class="cartao"><summary><b>Área ${esc(A.area)} – ${esc(A.nome)}</b> · ${A.zonas.reduce((n, Z) => n + Z.comps.reduce((m, C) => m + C.itens.length, 0), 0)} pontos</summary>
+      ${A.zonas.map((Z) => `<h4 style="margin:10px 0 4px">Zona ${esc(Z.zona)}${Z.nome ? ' – ' + esc(Z.nome) : ''}</h4>
+        <table><tr><th>Componente</th><th>Medição</th><th>Sensor indicado</th><th>Bancada</th></tr>${Z.comps.map((C) => C.itens.map(({ s, tec }, i) => `<tr class="clic" data-comps="${C.id}">${i === 0 ? `<td rowspan="${C.itens.length}">${esc(C.nome)}<div class="nota" style="margin:0">ATA ${esc(C.ata)}</div></td>` : ''}<td><b class="num-sen" style="--c:#${corSensor(s).toString(16).padStart(6, '0')}">${NUM_SENS.get(s.id)}</b> ${esc(s.n)}${s.un ? ` (${esc(s.un)})` : ''}</td><td>${ficha(tec[0])}${tec[1] ? `<div class="nota" style="margin:0">alternativa: ${esc(TECNOLOGIAS[tec[1]].nome)}</div>` : ''}</td><td class="nota">${esc(TECNOLOGIAS[tec[0]].bancada)}</td></tr>`).join('')).join('')}</table>`).join('')}</details>`).join('')}`;
+}
+function csvCatalogo() {
+  const linhas = [['Área', 'Nome da área', 'Zona', 'Nome da zona', 'Componente', 'ATA', 'Nº', 'Sensor', 'Unidade', 'Alerta', 'Crítico', 'Tecnologia', 'Princípio', 'Faixa', 'Amostragem', 'Saída', 'Condicionamento', 'Fixação', 'Ambiente', 'Uso preditivo', 'Alternativa', 'Protótipo de bancada', 'Custo']];
+  for (const A of catalogoPorArea(SENSORES, COMPS, ZONAS)) for (const Z of A.zonas) for (const C of Z.comps) for (const { s, tec } of C.itens) {
+    const t = TECNOLOGIAS[tec[0]];
+    linhas.push([A.area, A.nome, Z.zona, Z.nome, C.nome, C.ata, NUM_SENS.get(s.id), s.n, s.un, s.al ?? '', s.cr ?? '', t.nome, t.principio, t.faixa, t.amostragem, t.saida, t.condicionamento, t.fixacao, t.ambiente, t.preditiva, tec[1] ? TECNOLOGIAS[tec[1]].nome : '', t.bancada, t.custo]);
+  }
+  return paraCsv(linhas);
+}
+
+/* ---------- Dados: exportar, importar, apagar ---------- */
+const num = (v) => (Number.isFinite(+v) ? +v : 0);
+function exportar(tipo) {
+  const st = lerCtrl(), mat = st.mat ? st.mat.replace(/[^\w-]/g, '') + '_' : '';
+  if (tipo === 'json') return baixar(`bell${CFG.id}_${mat}backup_${dataArq()}.json`, JSON.stringify({ app: `bell${CFG.id}-manual`, versao: 1, exportado: new Date().toISOString(), dados: { check: feitos, ctrl: st, tarefas: guarda.ler(K + '_tarefas', []), iot } }, null, 2), 'application/json');
+  if (tipo === 'ctrl') return baixar(`bell${CFG.id}_${mat}controle_${dataArq()}.csv`, paraCsv([
+    ['Matrícula', st.mat, 'Horas totais', st.tsn, 'Média h/mês', st.media], [],
+    ['Intervalo', 'Horas', 'Origem', 'Última execução (h)', 'Vence com (h)', 'Restam (h)', 'Situação'],
+    ...linhasControle(st).map(({ l, ult, prox, resta, sit }) => [l.nome, l.h, l.origem === 'mpi' ? INFO.manual : 'Operador', st.ult[l.id] == null ? '' : ult, prox.toFixed(1), resta.toFixed(1), sit[1]])]), 'text/csv');
+  if (tipo === 'check') return baixar(`bell${CFG.id}_${mat}checklist_${dataArq()}.csv`, paraCsv([
+    ['Inspeção', 'Sistema', 'Tarefa', 'Descrição', 'Acesso', 'Zona', 'Componentes no modelo', 'Executada'],
+    ...TAREFAS.map((x) => [x.ins.nome, x.g.s, x.t[0], x.t[1], x.t[2], x.t[3], x.comps.map((c) => COMPS[c].n).join(' | '), feitos[x.ins.id + ':' + x.t[0]] ? 'SIM' : ''])]), 'text/csv');
+  if (tipo === 'sens') return baixar(`bell${CFG.id}_${mat}sensores_${dataArq()}.csv`, paraCsv([
+    ['Sensor', 'Id', 'Sistema', 'Componentes', 'Valor', 'Unidade', 'Alerta', 'Crítico', 'Estado', 'Origem'],
+    ...SENSORES.map((s) => [s.n, s.id, s.grupo, s.comp.map((c) => COMPS[c].n).join(' | '), s.tipo === 'bool' ? leit[s.id].v : leit[s.id].v.toFixed(2), s.un, s.al ?? '', s.cr ?? '', ROT[estado(s)][1], iot.modo === 'sim' ? 'simulação' : iot.url])]), 'text/csv');
+}
+function importar(texto) {
+  let j; try { j = JSON.parse(texto); } catch { return 'Arquivo inválido: não é JSON.'; }
+  const d = j && j.app === `bell${CFG.id}-manual` && j.dados;
+  if (!d || typeof d !== 'object') return 'Arquivo inválido: não é um backup deste manual.';
+  if (!confirm('Importar substitui as marcações, o controle e as tarefas salvas deste navegador. Continuar?')) return 'Importação cancelada.';
+  for (const k in feitos) delete feitos[k];
+  if (d.check && typeof d.check === 'object') for (const k of Object.keys(d.check).slice(0, 5000)) if (k.length <= 80 && d.check[k]) feitos[k] = 1;
+  guarda.salvar(K + '_check', feitos);
+  const c = d.ctrl && typeof d.ctrl === 'object' ? d.ctrl : {}, ult = {};
+  for (const k of Object.keys(c.ult || {}).slice(0, 300)) if (k.length <= 40) ult[k] = num(c.ult[k]);
+  guarda.salvar(K + '_ctrl', {
+    mat: String(c.mat || '').slice(0, 20), tsn: num(c.tsn), media: num(c.media), ult,
+    extra: (Array.isArray(c.extra) ? c.extra : []).slice(0, 60).filter((x) => x && num(x.h) > 0).map((x) => ({ id: String(x.id || 'x' + Math.random()).slice(0, 40), nome: String(x.nome || '').slice(0, 80), h: num(x.h), origem: 'op', extra: 1 })),
+    rin: Array.isArray(c.rin) ? c.rin.slice(0, 3).map(num) : undefined
+  });
+  guarda.salvar(K + '_tarefas', (Array.isArray(d.tarefas) ? d.tarefas : []).filter((s) => typeof s === 'string').map((s) => s.slice(0, 300)).slice(0, 30));
+  seloControle();
+  return `Backup de ${String(j.exportado || '').slice(0, 10) || 'data desconhecida'} importado.`;
+}
+let msgDados = '';
+desenhar.dados = () => {
+  const st = lerCtrl(), nFeitos = Object.keys(feitos).length, salvas = guarda.ler(K + '_tarefas', []).length, venc = linhasControle(st).filter((x) => x.sit[0] === 'er').length;
+  conteudo.innerHTML = `<h2>Dados registrados neste navegador</h2>
+    <div class="resumo"><div><b>${nFeitos}</b><span>itens de checklist marcados</span></div><div><b>${salvas}</b><span>tarefas descritas salvas</span></div>
+      <div><b>${st.mat ? esc(st.mat) : '—'} · ${st.tsn} h</b><span>aeronave no controle</span></div><div><b>${venc}</b><span>inspeções vencidas</span></div></div>
+    ${msgDados ? `<p class="nota" style="color:var(--acento2)">${esc(msgDados)}</p>` : ''}
+    <h3>Cópia de segurança</h3>
+    <p class="nota">Os dados ficam só neste navegador e neste endereço. Use o backup para levar para outro aparelho ou do localhost para o site.</p>
+    <div class="linha"><button class="bt pri" data-dado="json">Exportar backup (.json)</button><button class="bt" data-dado="abrir-import">Importar backup…</button><input type="file" id="arqImport" accept=".json,application/json" hidden></div>
+    <h3>Mapa de onde colocar os sensores</h3>
+    <div class="linha"><button class="bt pri" data-dado="folha">Folha de instalação dos sensores (imprimir / PDF)</button></div>
+    <h3>Planilhas (CSV para Excel)</h3>
+    <div class="linha"><button class="bt" data-dado="ctrl">Controle por horas</button><button class="bt" data-dado="check">Checklist de todas as inspeções</button><button class="bt" data-dado="sens">Leituras dos sensores</button></div>
+    <h3>Imprimir</h3>
+    <div class="linha"><button class="bt" data-dado="imprimir">Imprimir a inspeção selecionada</button></div>
+    <h3>Apagar</h3>
+    <div class="linha"><button class="bt perigo" data-dado="apagar-check">Marcações de checklist</button><button class="bt perigo" data-dado="apagar-ctrl">Controle por horas</button><button class="bt perigo" data-dado="apagar-tarefas">Tarefas salvas</button><button class="bt perigo" data-dado="apagar-tudo">Tudo</button></div>
+    <p class="nota">Apagar não tem como desfazer – exporte o backup antes.</p>`;
+  msgDados = '';
+};
+function acaoDados(acao) {
+  if (['json', 'ctrl', 'check', 'sens'].includes(acao)) { exportar(acao); return; }
+  if (acao === 'folha') { folhaSensores(); return; }
+  if (acao === 'csv-cat') { baixar(`helisense_${CFG.id}_catalogo_sensores_${dataArq()}.csv`, csvCatalogo(), 'text/csv'); return; }
+  if (acao === 'csv-pred') { const h = {}; for (const s of SENSORES) h[s.id] = leit[s.id].amo; baixar(`helisense_${CFG.id}_sensores_previsoes_${dataArq()}.csv`, '\ufeff' + csvSensores(SENSORES, h, ANALISE), 'text/csv'); return; }
+  if (acao === 'abrir-import') { $('#arqImport').click(); return; }
+  if (acao === 'imprimir') { if (abaAtual !== 'inspecoes') abrirAba('inspecoes'); setTimeout(() => window.print(), 100); return; }
+  const alvo = { 'apagar-check': 'as marcações de checklist', 'apagar-ctrl': 'o controle por horas', 'apagar-tarefas': 'as tarefas salvas', 'apagar-tudo': 'TODOS os dados' }[acao];
+  if (!alvo || !confirm(`Apagar ${alvo} deste navegador? Não é possível desfazer.`)) return;
+  if (acao === 'apagar-check' || acao === 'apagar-tudo') { for (const k in feitos) delete feitos[k]; guarda.salvar(K + '_check', feitos); selo('inspecoes', 0); }
+  if (acao === 'apagar-ctrl' || acao === 'apagar-tudo') guarda.salvar(K + '_ctrl', {});
+  if (acao === 'apagar-tarefas' || acao === 'apagar-tudo') guarda.salvar(K + '_tarefas', []);
+  seloControle(); msgDados = `Apagado: ${alvo}.`; desenhar.dados();
+}
+
+/* ---------- Eventos de interface do painel ---------- */
+conteudo.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t.matches('input, select, textarea')) return;
+  if (t.dataset.dado) { acaoDados(t.dataset.dado); return; }
+  if (t.dataset.res) {
+    const o = resultados[+t.dataset.res]; if (!o) return;
+    if (o.ir.ficha) { abrirAba('sistemas'); desenhar.sistemas(o.ir.ficha); }
+    else if (o.ir.insp) { abrirAba('inspecoes'); desenhar.inspecoes(o.ir.insp); $('#filtroInsp').value = o.tit.split(' — ')[0]; filtrarInspecao(); }
+    else if (o.ir.evento) { eventoAtual = o.ir.evento; abrirAba('eventos'); }
+    else abrirAba(o.ir.aba);
+    selecionar(o.comps); return;
+  }
+  if (t.id === 'btMarcar') { for (const c of conteudo.querySelectorAll('.item:not(.oculto) [data-check]')) { c.checked = true; feitos[c.dataset.check] = 1; c.closest('.item').classList.add('feito'); } guarda.salvar(K + '_check', feitos); progresso(); filtrarInspecao(); return; }
+  if (t.id === 'btMapa') { ligarMapaSaude(!mapaSaude); desenhar.sensores(); return; }
+  if (t.id === 'btMapaNumerado') { ligarMapaSens(!marcasMapa.ativo); desenhar.sensores(); return; }
+  { const card = t.closest('.sensor[data-sensor]'); if (card && marcasMapa.ativo) sensorMapa = card.dataset.sensor; }
+  if (t.id === 'btIniciarVoo') { if (vooSim) pararVoo(false); else iniciarVoo(); return; }
+  if (t.dataset.evento) { eventoAtual = t.dataset.evento; abrirAba('eventos'); return; }
+  if (t.id === 'btCenario') { reiniciarCenario(cenario); falha.clear(); desenhar.sensores(); return; }
+  if (t.dataset.falha) { falha.has(t.dataset.falha) ? falha.delete(t.dataset.falha) : falha.add(t.dataset.falha); t.textContent = falha.has(t.dataset.falha) ? 'Normalizar' : 'Simular falha'; return; }
+  if (t.dataset.ex) { ultimoTexto = t.dataset.ex; $('#txt').value = ultimoTexto; mostrarAnalise(); return; }
+  if (t.id === 'btMostrar') { ultimoTexto = $('#txt').value; mostrarAnalise(); return; }
+  if (t.id === 'btSalvar') { const v = $('#txt').value.trim(); if (v) { const s = guarda.ler(K + '_tarefas', []); if (!s.includes(v)) s.unshift(v); guarda.salvar(K + '_tarefas', s.slice(0, 30)); ultimoTexto = v; desenhar.descrever(); } return; }
+  if (t.dataset.apagar) { const s = guarda.ler(K + '_tarefas', []); s.splice(+t.dataset.apagar, 1); guarda.salvar(K + '_tarefas', s); desenhar.descrever(); return; }
+  const salva = t.closest('[data-salva]');
+  if (salva) { ultimoTexto = guarda.ler(K + '_tarefas', [])[+salva.dataset.salva] || ''; $('#txt').value = ultimoTexto; mostrarAnalise(); conteudo.scrollTop = 0; return; }
+  if (t.id === 'btZerar') { for (const c of conteudo.querySelectorAll('[data-check]')) delete feitos[c.dataset.check]; guarda.salvar(K + '_check', feitos); desenhar.inspecoes(); return; }
+  if (t.dataset.insp) { abrirAba('inspecoes'); desenhar.inspecoes(t.dataset.insp); return; }
+  if (t.dataset.feita) { salvarControle((st) => { st.ult[t.dataset.feita] = st.tsn; }); return; }
+  if (t.dataset.remover) { salvarControle((st) => { st.extra = st.extra.filter((x) => x.id !== t.dataset.remover); }); return; }
+  if (t.id === 'btAdd') { const nome = $('#nNome').value.trim(), h = +$('#nHoras').value; if (nome && h > 0) salvarControle((st) => st.extra.push({ id: 'x' + Date.now(), nome, h, origem: 'op', extra: 1 })); return; }
+  const fic = t.closest('[data-ficha]');
+  if (fic) { selecionar([fic.dataset.ficha]); desenhar.sistemas(fic.dataset.ficha); conteudo.scrollTop = 0; return; }
+  const alvo = t.closest('[data-comps]');
+  if (alvo) { const ids = alvo.dataset.comps.split(',').filter(Boolean); selecionar(ids); marcarAtivo(ids.length ? alvo : null); }
+});
+conteudo.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.check) { if (t.checked) feitos[t.dataset.check] = 1; else delete feitos[t.dataset.check]; guarda.salvar(K + '_check', feitos); t.closest('.item').classList.toggle('feito', t.checked); progresso(); if ($('#soPend')?.checked) filtrarInspecao(); }
+  else if (t.id === 'soPend') filtrarInspecao();
+  else if (t.id === 'arqImport') { const f = t.files[0]; if (f) f.text().then((txt) => { msgDados = importar(txt); desenhar.dados(); }); }
+  else if (t.id === 'selInsp') { selecionar([]); desenhar.inspecoes(t.value); }
+  else if (t.id === 'iotModo') { iot.modo = t.value; guarda.salvar(K + '_iot', iot); falha.clear(); reiniciarCenario('normal'); zerarLeituras(); desenhar.sensores(); }
+  else if (t.id === 'selVooFalha') vooFalha = t.value;
+  else if (t.id === 'iotCenario') { if (vooSim) pararVoo(false); reiniciarCenario(t.value); falha.clear(); if (['estresse', 'degradacao'].includes(t.value) && !mapaSaude) ligarMapaSaude(true); desenhar.sensores(); }
+  else if (t.id === 'iotUrl') { iot.url = t.value.trim() || 'api/telemetria.php'; guarda.salvar(K + '_iot', iot); }
+  else if (t.id === 'selEvento') { eventoAtual = t.value; selecionar([]); desenhar.eventos(); }
+  else if (t.id === 'cMat') salvarControle((st) => { st.mat = t.value; });
+  else if (t.id === 'cTsn') salvarControle((st) => { st.tsn = +t.value || 0; });
+  else if (t.id === 'cMedia') salvarControle((st) => { st.media = +t.value || 0; });
+  else if (t.dataset.ult) salvarControle((st) => { if (t.value === '') delete st.ult[t.dataset.ult]; else st.ult[t.dataset.ult] = +t.value || 0; });
+  else if (['rN', 'rC', 'rA'].includes(t.id)) salvarControle((st) => { st.rin = [+$('#rN').value || 0, +$('#rC').value || 0, +$('#rA').value || 0]; });
+});
+conteudo.addEventListener('keydown', (e) => { if (e.target.id === 'txt' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { ultimoTexto = e.target.value; mostrarAnalise(); } });
+
+conteudo.addEventListener('input', (e) => { if (e.target.id === 'filtroInsp') filtrarInspecao(); });
+
+/* =====================================================================
+   Teste de simulação de voo (o helicóptero voa no 3D e os sensores acompanham)
+   ===================================================================== */
+const FALHAS_VOO = {
+  normal: 'Voo normal',
+  pouso: 'Pouso duro (aceleração vertical acima do limite)',
+  otq: 'Sobretorque na decolagem',
+  chip: 'Luz de CHIP da transmissão no cruzeiro',
+  vib: 'Vibração alta do rotor principal no cruzeiro',
+  motor: 'Superaquecimento do motor na subida'
+};
+const sTempVoo = SENSORES.find((s) => /^(mgt_1|temp_motor)$/.test(s.id));
+const sTqVoo = SENSORES.find((s) => s.id === 'torque_mastro');
+let vooSim = null, vooFalha = 'normal', vooResumo = null, hudT = 0;
+// perfil: [t (s), altitude (ft), velocidade (kt), arfagem (graus, + = nariz para baixo), Nr (%)]
+const PERFIL_VOO = [[0, 0, 0, 0, 0], [8, 0, 0, 0, 100], [11, 8, 0, 0, 100], [16, 8, 0, 1, 100], [20, 250, 50, 7, 100], [24, 500, 80, 6, 100], [30, 1000, 120, 4, 100],
+  [44, 1000, 120, 4, 100], [50, 200, 60, 2, 100], [52, 30, 25, -3, 100], [55, 6, 0, -1, 100], [57.5, 0, 0, 0, 100], [58, 0, 0, 0, 100], [62, 0, 0, 0, 0]];
+function perfilEm(t) {
+  const P = PERFIL_VOO;
+  for (let i = 1; i < P.length; i++) if (t <= P[i][0]) { const a = P[i - 1], b = P[i], k = Math.max(0, (t - a[0]) / (b[0] - a[0])), e = k * k * (3 - 2 * k); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * e); }
+  return P[P.length - 1].slice(1);
+}
+function iniciarVoo() {
+  if (iot.modo !== 'sim') { iot.modo = 'sim'; guarda.salvar(K + '_iot', iot); zerarLeituras(); }
+  falha.clear(); reiniciarCenario('voo'); vooResumo = null; hudT = 0;
+  vooSim = { t0: performance.now(), dist: 0, alt: 0 };
+  selecionar([], { foco: false }); marcarAtivo(null); if (!mapaSaude) ligarMapaSaude(true);
+  $('#hudVoo').hidden = false; $('#btVoo').classList.add('on'); $('#btVoo').textContent = 'Parar voo';
+  abrirAba('voo');
+}
+function pararVoo(concluido) {
+  if (!vooSim) return;
+  vooResumo = { concluido, dur: (performance.now() - vooSim.t0) / 1000, log: cenLog.slice(), falha: vooFalha };
+  const dy = -vooSim.alt; camera.position.y += dy; controles.target.y += dy;
+  vooSim = null; reiniciarCenario('normal');
+  heli.raiz.position.set(0, 0, 0); heli.raiz.rotation.set(0, 0, 0); grade.position.x = -2;
+  $('#hudVoo').hidden = true; $('#btVoo').classList.remove('on'); $('#btVoo').textContent = 'Simular voo';
+  abrirAba('voo');
+}
+$('#btVoo').onclick = () => (vooSim ? pararVoo(false) : iniciarVoo());
+function animarVoo(dt) {
+  if (!vooSim) return;
+  const t = (performance.now() - vooSim.t0) / 1000;
+  if (t >= CICLO_VOO) { pararVoo(true); return; }
+  let [alt, kt, arf, nr] = perfilEm(t), tremor = 0;
+  if (vooFalha === 'pouso' && t > 52 && t < 55) { // desce rápido demais e quica no toque
+    const k = (t - 52) / 1.2;
+    alt = k < 1 ? 30 * (1 - k * k) : Math.abs(Math.sin((t - 53.2) * 9)) * 2 * Math.max(0, 1 - (t - 53.2) / 1.4);
+    if (t > 53.1 && t < 53.7) tremor = (Math.random() - 0.5) * 0.08;
+  }
+  const y = Math.min(alt / 110, 9.5), dy = y - vooSim.alt; vooSim.alt = y;
+  heli.raiz.position.set(tremor, y, 0); heli.raiz.rotation.z = -arf * Math.PI / 180;
+  camera.position.y += dy; controles.target.y += dy;
+  vooSim.dist += kt * 0.514 * 0.12 * dt; grade.position.x = -2 - (vooSim.dist % 1);
+  for (const r of heli.rotores) r.obj.rotation[r.eixo] += dt * r.vel * 1.8 * nr / 100;
+  if (t - hudT > 0.2) { hudT = t; atualizarHud(t, alt, kt, nr); }
+}
+const valorLeit = (s) => (s ? leit[s.id].v : NaN);
+function atualizarHud(t, alt, kt, nr) {
+  const fase = faseVoo(t)[1], alertas = SENSORES.filter((s) => ['al', 'cr'].includes(estado(s))), cr = alertas.filter((s) => estado(s) === 'cr').length;
+  const num = (v, d = 0) => (Number.isFinite(v) ? v.toLocaleString('pt-BR', { maximumFractionDigits: d }) : '—');
+  $('#hudVoo').innerHTML = `<div class="hud-fase"><b>${esc(fase)}</b><span>${num(t)} s de ${CICLO_VOO} s · ${esc(FALHAS_VOO[vooFalha])}</span></div>
+    <div class="hud-barra">${FASES_VOO.map((f, i) => { const fim = (FASES_VOO[i + 1] || [CICLO_VOO])[0]; return `<i class="${t >= fim ? 'feita' : t >= f[0] ? 'atual' : ''}" style="flex:${fim - f[0]}" title="${esc(f[1])}"></i>`; }).join('')}</div>
+    <div class="hud-val"><div><b>${num(alt)}</b><span>altitude ft</span></div><div><b>${num(kt)}</b><span>velocidade kt</span></div><div><b>${num(nr)}</b><span>Nr %</span></div>
+      <div><b>${num(valorLeit(sTqVoo))}</b><span>torque %</span></div><div><b>${num(valorLeit(sTempVoo))}</b><span>${sTempVoo ? (sTempVoo.id === 'mgt_1' ? 'MGT nº 1 °C' : 'motor °C') : 'motor'}</span></div>
+      <div class="${cr ? 'cr' : alertas.length ? 'al' : ''}"><b>${alertas.length}</b><span>alertas${cr ? ` · ${cr} crít.` : ''}</span></div></div>`;
+  const vv = $('#vooAoVivo');
+  if (vv) vv.innerHTML = cenLog.length ? `<h3>Ocorrências até agora (${cenLog.length})</h3>${cenLog.slice(-8).reverse().map((x) => `<div class="item" data-comps="${x.s.comp.join(',')}"><span class="tag ${ROT[x.e][0]}">${ROT[x.e][1]}</span><div class="desc">${esc(x.s.n)}<div class="meta">${x.t.toFixed(0)} s · ${esc(x.fase)}</div></div></div>`).join('')}` : '<p class="nota">Voo em andamento: nenhum sensor fora da faixa até agora.</p>';
+}
+function resumoVoo() {
+  const r = vooResumo, piores = {};
+  for (const x of r.log) if (!piores[x.s.id] || x.e === 'cr') piores[x.s.id] = x;
+  const lista = Object.values(piores), crit = lista.filter((x) => x.e === 'cr');
+  const evs = new Set();
+  for (const x of lista) {
+    if (x.s.un === 'g' && x.e === 'cr') evs.add('pouso');
+    if (x.s.id === 'torque_mastro' && x.e === 'cr') evs.add('otq');
+    if (sTempVoo && x.s.id === sTempVoo.id && x.e === 'cr') evs.add('otemp');
+  }
+  const eventos = [...evs].map((id) => MPI.EVENTOS.find((e) => e.id === id)).filter(Boolean);
+  const comps = new Set(lista.flatMap((x) => x.s.comp));
+  const tarefas = TAREFAS.filter((x) => x.comps.some((c) => comps.has(c))).slice(0, 6);
+  return `<h3>Resultado do voo ${r.concluido ? 'concluído' : 'interrompido'} (${r.dur.toFixed(0)} s · ${esc(FALHAS_VOO[r.falha])})</h3>
+    <div class="cartao ${crit.length ? 'critico' : lista.length ? 'alerta' : ''}"><div class="tit"><span>${lista.length ? `${lista.length} sensor${lista.length > 1 ? 'es' : ''} fora da faixa (${crit.length} crítico${crit.length === 1 ? '' : 's'})` : 'Voo sem ocorrências: todos os sensores dentro da faixa'}</span></div>
+      <div class="sub">${lista.length ? 'Clique em cada item para ver o componente no 3D.' : 'Nenhuma inspeção condicional indicada por este voo.'}</div></div>
+    ${lista.map((x) => `<div class="cartao clic ${x.e === 'cr' ? 'critico' : 'alerta'}" data-comps="${x.s.comp.join(',')}"><div class="tit"><span>${esc(x.s.n)}</span><span class="tag ${ROT[x.e][0]}">${ROT[x.e][1]}</span></div>
+      <div class="sub">${x.t.toFixed(0)} s · ${esc(x.fase)} · <b>Ação:</b> ${esc(x.s.dica)}</div></div>`).join('')}
+    ${eventos.length ? `<h3>Inspeções condicionais indicadas</h3><div class="linha">${eventos.map((e) => `<button class="bt pri" data-evento="${e.id}">${esc(e.n)} ›</button>`).join('')}</div>` : ''}
+    ${tarefas.length ? `<h3>Tarefas do ${esc(INFO.manual)} relacionadas</h3>${tarefas.map((x) => itemTarefa(x, { origem: true })).join('')}` : ''}`;
+}
+desenhar.voo = () => {
+  conteudo.innerHTML = `<h2>Teste de simulação de voo</h2>
+    <p class="nota">O ${esc(CFG.nome)} faz um voo completo no 3D em ${CICLO_VOO} s: partida, pairado, decolagem, subida, cruzeiro, descida, pouso e corte. Os sensores acompanham cada fase, o mapa de saúde pinta no modelo os componentes que saem da faixa e, no fim, aparecem as inspeções indicadas. Escolha uma falha para treinar o diagnóstico.</p>
+    <div class="linha"><select id="selVooFalha" style="flex:1;min-width:180px">${Object.entries(FALHAS_VOO).map(([k, n]) => `<option value="${k}" ${k === vooFalha ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <button class="bt pri" id="btIniciarVoo">${vooSim ? 'Parar o voo' : 'Iniciar o voo'}</button></div>
+    <div class="fases-voo">${FASES_VOO.map((f) => `<span>${esc(f[1])}</span>`).join('<i>›</i>')}</div>
+    <div id="vooAoVivo">${vooSim ? '' : ''}</div>
+    ${vooResumo ? resumoVoo() : '<p class="nota">Dica: aproxime a câmera antes de iniciar; ela acompanha a subida do helicóptero. O teste do motor (partida, voo e estresse com limites do fabricante) fica na página <a href="motor.html?m=' + CFG.id + '">Motor 3D</a>.</p>'}`;
+};
+
+/* ---------- folha de instalação dos sensores do helicóptero ---------- */
+async function folhaSensores() {
+  const win = abrirJanela();
+    const estado = { pinos: grpPinos.visible, raiox, sel: [...sel] };
+  const pontos = SENSORES.map((s) => ({ n: NUM_SENS.get(s.id), cor: corSensor(s), pos: pinos[s.id].getWorldPosition(new THREE.Vector3()) }));
+  // enquadra a célula (sem as pás) para os números ficarem legíveis
+  const cx = new THREE.Box3(); for (const id in COMPS) if (COMPS[id].shell || ['esquis', 'deriva', 'estabilizador'].includes(id)) if (info[id]) cx.union(info[id].caixa);
+  const tam = cx.getSize(new THREE.Vector3()), fv = THREE.MathUtils.degToRad(camera.fov) / 2, asp = 1100 / 620;
+  const dist = Math.max(tam.x / 2 / (Math.tan(fv) * asp), tam.y / 2 / Math.tan(fv)) * 1.12 + tam.z / 2;
+  const imagens = await capturarVistas({ renderer, cena, camera, alvo: cx.getCenter(new THREE.Vector3()), dist, pontos, esconder: [grade],
+    vistas: [{ nome: 'Lado direito', dir: [0.05, 0.12, 1] }, { nome: 'Lado esquerdo', dir: [0.05, 0.12, -1] }, { nome: 'Vista de cima', dir: [0.001, 1, 0], up: [0, 0, -1] }, { nome: 'Vista de frente', dir: [1, 0.15, 0.001] }],
+    antes: () => { grpPinos.visible = true; raiox = true; sel.clear(); aplicarMateriais(); }, depois: () => { grpPinos.visible = estado.pinos; raiox = estado.raiox; estado.sel.forEach((i) => sel.add(i)); aplicarMateriais(); } });
+  escreverFolha(win, {
+    titulo: `Mapa de instalação dos sensores – ${CFG.nome}`,
+    subtitulo: `${SENSORES.length} sensores em ${new Set(SENSORES.flatMap((s) => s.comp)).size} componentes · HeliSense 3D · ${new Date().toLocaleDateString('pt-BR')}`,
+    legenda: LEGENDA_MAPA, imagens,
+    cab: ['Nº', 'Sensor', 'Onde instalar (componente)', 'Zona', 'Grupo', 'Medição', 'Alerta / crítico', 'Ação se sair da faixa'],
+    linhas: SENSORES.map((s) => ({ n: NUM_SENS.get(s.id), cor: corSensor(s), cols: [s.n, s.comp.map((c) => COMPS[c].n).join(' · '), s.comp.map((c) => COMPS[c].z).join(' · '), s.grupo,
+      s.tipo === 'bool' ? 'discreto (detectado / normal)' : `${s.un} (${s.tipo === 'max' ? 'alerta quando sobe' : 'alerta quando cai'})`, s.tipo === 'bool' ? '—' : `${s.al} / ${s.cr} ${s.un}`, s.dica] })),
+    nota: 'Os pontos ficam no centro do componente no modelo 3D (posição indicativa). O local exato de fixação, o tipo de sensor e as faixas de alerta são ilustrativos: em uso real, defina-os conforme o manual do fabricante e o programa aprovado. Ids dos sensores para telemetria: sensores.js do modelo.'
+  });
+}
+
+seloControle();
+abrirAba(ABAS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'descrever');
+window.manual = window.b429 = { CFG, selecionar, analisar, abrirAba, TAREFAS, exportar, importar }; // útil para testes no console
+if (window.ResizeObserver && document.getElementById('barra')) new ResizeObserver(() => ajustar()).observe(document.getElementById('barra'));

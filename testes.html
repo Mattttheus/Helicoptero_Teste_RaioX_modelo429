@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Testes · HeliSense 3D</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <style>
+    body { overflow: auto; } .tp { max-width: 1100px; margin: 0 auto; padding: 18px 20px 60px; color: #dfe6ee; }
+    .tp h1 { font-size: 22px; } .tp h2 { font-size: 15px; color: #ff8a2a; margin: 18px 0 6px; }
+    .tp .l { font: 13px/1.5 ui-monospace, Consolas, monospace; } .tp .ok { color: #6fdc96; } .tp .er { color: #ff6b6b; } .tp .av { color: #f0c04e; }
+    .tp .res { font-size: 16px; margin: 10px 0; padding: 10px 14px; border-radius: 8px; background: #121821; border: 1px solid #2b3646; }
+    #palco { width: 960px; height: 540px; border: 1px solid #2b3646; border-radius: 8px; margin-top: 10px; background: #000; }
+    table { border-collapse: collapse; } td, th { padding: 4px 10px; border-bottom: 1px solid #2b3646; text-align: left; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="tp">
+    <h1>Testes automáticos · HeliSense 3D</h1>
+    <p class="nota">1) <b>Domínio e aplicação</b>: dados de todas as aeronaves e motores, atlas, simulação do motor e sistemas da cabine (elétrico, A/C, rotor, panes).
+      2) <b>Páginas</b>: abre cada página com cada modelo e confere que carrega sem erro. 3) <b>Desempenho</b>: tempo de abertura e quadros por segundo do 3D.</p>
+    <div class="linha"><button class="bt pri" id="btTudo">Rodar todos os testes</button><button class="bt" id="btUnit">Só domínio e aplicação</button><button class="bt" id="btPag">Só páginas e desempenho</button></div>
+    <div id="resumo" class="res">Pronto para testar.</div>
+    <div id="saida"></div>
+    <iframe id="palco" title="Página em teste"></iframe>
+  </div>
+  <script type="module" src="testes/navegador.js"></script>
+</body>
+</html>

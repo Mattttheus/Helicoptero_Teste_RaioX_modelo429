@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manutenção Interativa Bell</title>
+<style>
+  /* Hangar à noite: fundo azul-grafite, acento âmbar de luz de painel. Layout: uma coluna de cartões, 3D no topo. */
+  :root {
+    --fundo: #0d1218; --cartao: #151c25; --borda: #263241; --texto: #e7edf3; --suave: #8a99aa;
+    --acento: #ff9d2e; --azul: #5fb0ff; --ok: #3ccf8e; --alerta: #f2c14e; --erro: #ef5b5b;
+    --f-display: "Roboto Condensed", "Arial Narrow", system-ui, sans-serif; --f-corpo: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.5 var(--f-corpo); }
+  a { color: var(--azul); }
+  .pagina { max-width: 760px; margin: 0 auto; padding: 0 16px 40px; display: grid; gap: 16px; }
+  header { padding: 18px 0 4px; display: grid; gap: 4px; }
+  .selo { display: inline-flex; align-items: center; gap: 8px; font: 600 13px var(--f-mono); color: var(--acento); letter-spacing: .04em; }
+  h1 { font: 700 34px/1.05 var(--f-display); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+  h2 { font: 600 22px/1.15 var(--f-display); margin: 0; letter-spacing: .02em; text-wrap: balance; }
+  .credito { color: var(--suave); font-size: 13px; }
+  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+  .sub { color: var(--suave); font-size: 13px; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .chip { flex: none; border: 1px solid var(--borda); background: #1b2430; color: var(--texto); border-radius: 999px; padding: 7px 12px; font: 600 14px var(--f-display); letter-spacing: .03em; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--cor, var(--acento)); color: #10151b; border-color: transparent; }
+  .chip:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+  #palco { position: relative; height: 340px; border-radius: 12px; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #1b2635, #0b1016 72%); touch-action: none; }
+  #palco canvas { touch-action: none; display: block; width: 100%; height: 100%; }
+  #legenda { position: absolute; left: 10px; bottom: 10px; right: 10px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+  #legenda span { background: #0b1016d9; border: 1px solid var(--borda); border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+  #peca { color: var(--acento); font-weight: 600; }
+  .botoes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bt { border: 1px solid var(--borda); background: #1b2430; color: var(--texto); border-radius: 9px; padding: 8px 12px; font: 500 14px var(--f-corpo); cursor: pointer; }
+  .bt.on { border-color: var(--acento); color: var(--acento); }
+  .ficha { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ficha div { background: #1b2430; border-radius: 10px; padding: 8px 10px; }
+  .ficha b { display: block; font: 600 12px var(--f-mono); color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
+  @media (max-width: 420px) { .ficha { grid-template-columns: 1fr; } h1 { font-size: 30px; } }
+  /* comandos */
+  .comandos { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: center; }
+  @media (max-width: 420px) { .comandos { grid-template-columns: 1fr; } #swash { justify-self: center; } }
+  .sl { display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; font-size: 14px; }
+  .sl input { width: 100%; accent-color: var(--acento); }
+  .sl output { font: 500 13px var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+  #swash { width: 150px; height: 150px; }
+  .leitura-valores { font: 500 13px var(--f-mono); color: var(--suave); font-variant-numeric: tabular-nums; }
+  /* leitura digital */
+  .exemplo { font: 600 11px var(--f-mono); color: #10151b; background: var(--alerta); border-radius: 6px; padding: 2px 6px; justify-self: start; letter-spacing: .04em; }
+  .passo { display: grid; grid-template-columns: 22px 22px 1fr; gap: 6px; align-items: start; padding: 8px; border-radius: 10px; background: #1b2430; cursor: pointer; }
+  .passo b { font-family: var(--f-mono); color: var(--suave); }
+  .passo:has(input:checked) { opacity: .5; text-decoration: line-through; }
+  .passo input { width: 18px; height: 18px; accent-color: var(--ok); margin: 2px 0 0; }
+  .aviso { border-left: 4px solid var(--alerta); background: #f2c14e14; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  .torque { background: #ff9d2e2e; color: #ffc27a; border-radius: 4px; padding: 0 4px; font-weight: 600; white-space: nowrap; }
+  .ferr { background: #3ccf8e26; color: #8ff0c2; border-radius: 4px; padding: 0 4px; font-family: var(--f-mono); font-size: 13px; }
+  .pn { color: var(--azul); font-family: var(--f-mono); font-size: 13px; border-bottom: 1px dotted var(--azul); }
+  .progresso { height: 6px; background: #1b2430; border-radius: 99px; overflow: hidden; } .progresso i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .2s; }
+  /* tabela */
+  .tabela { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  th { font: 600 12px var(--f-mono); color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
+  td.mod { font: 600 15px var(--f-display); white-space: nowrap; } td.mod i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
+  .rodape { color: var(--suave); font-size: 12px; text-align: center; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="pagina">
+  <header>
+    <span class="selo">HELIPARK · PLANEJAMENTO · DEMONSTRAÇÃO</span>
+    <h1>Manutenção Interativa Bell</h1>
+    <span class="credito">Criado por: Matheus Vinicius — Analista de Planejamento</span>
+  </header>
+
+  <section class="cartao" aria-labelledby="t3d">
+    <h2 id="t3d">Aeronave em 3D</h2>
+    <div class="chips" id="modelos" role="group" aria-label="Modelo"></div>
+    <div id="palco"><canvas id="tela3d" aria-label="Helicóptero em 3D: arraste para girar, pinça para aproximar, toque numa peça"></canvas><div id="legenda"><span id="peca">Toque numa parte da aeronave</span><span id="nomeModelo"></span></div></div>
+    <div class="botoes">
+      <button class="bt on" id="btRotor" type="button">Rotor girando</button>
+      <button class="bt" id="btRaiox" type="button">Raio-X</button>
+      <button class="bt" id="btVista" type="button">Vista geral</button>
+    </div>
+    <div class="ficha" id="ficha"></div>
+  </section>
+
+  <section class="cartao" aria-labelledby="tcmd">
+    <h2 id="tcmd">Comandos de voo</h2>
+    <span class="sub">Mexa nos comandos e veja o swashplate responder: coletivo sobe o prato, cíclico inclina o disco, pedais mudam o passo do rotor de cauda.</span>
+    <div class="comandos">
+      <div style="display:grid;gap:6px">
+        <label class="sl" for="slCol">Coletivo <input type="range" id="slCol" min="0" max="100" value="30"><output id="oCol"></output></label>
+        <label class="sl" for="slLon">Cíclico long. <input type="range" id="slLon" min="-100" max="100" value="0"><output id="oLon"></output></label>
+        <label class="sl" for="slLat">Cíclico lat. <input type="range" id="slLat" min="-100" max="100" value="0"><output id="oLat"></output></label>
+        <label class="sl" for="slPed">Pedais <input type="range" id="slPed" min="-100" max="100" value="0"><output id="oPed"></output></label>
+      </div>
+      <canvas id="swash" width="300" height="300" aria-label="Swashplate visto de cima"></canvas>
+    </div>
+    <div class="leitura-valores" id="valores"></div>
+    <span class="sub">Cadeia: stick → jackshaft → tubos e bellcranks → mixer → 3 servos hidráulicos → swashplate → pitch links → pás. Valores didáticos.</span>
+  </section>
+
+  <section class="cartao" aria-labelledby="tleit">
+    <h2 id="tleit">Leitura digital de procedimento</h2>
+    <span class="exemplo">EXEMPLO ILUSTRATIVO · NÃO USAR EM MANUTENÇÃO</span>
+    <span class="sub">Na versão da rede local, cada procedimento do manual vira um checklist como este, com torques, ferramentas e PN destacados e ligados ao catálogo de peças.</span>
+    <div class="progresso" aria-hidden="true"><i id="barra"></i></div>
+    <div class="aviso"><b>CAUTION</b> – Desligue a bateria e coloque etiqueta de aviso antes de mexer nos comandos.</div>
+    <div id="passos" style="display:grid;gap:6px"></div>
+  </section>
+
+  <section class="cartao" aria-labelledby="tmot">
+    <h2 id="tmot">Frota e motorização</h2>
+    <div class="tabela"><table>
+      <thead><tr><th>Modelo</th><th>Motor</th><th>Configuração</th><th>Potência</th><th>Rotor</th></tr></thead>
+      <tbody id="tabela"></tbody>
+    </table></div>
+    <span class="sub">Potências dos motores Rolls-Royce 250 Série IV conforme a ficha técnica pública EASA TCDS IM.E.109.</span>
+  </section>
+
+  <p class="rodape">Arquivo único, funciona sem internet. Demonstração com modelos 3D ilustrativos. Os dados dos manuais Bell (procedimentos, catálogo de peças e figuras) ficam somente na rede local da Helipark.</p>
+</div>
+
+<script>
+const FROTA = [
+  ['505', 'Bell 505 Jet Ranger X', 'Safran Arrius 2R', '1 turboeixo', '~505 shp', '2 pás, semirrígido', '#3fa7ff', '1 piloto + 4'],
+  ['429', 'Bell 429 GlobalRanger', 'P&WC PW207D1', '2 turboeixos', '~625 shp por motor', '4 pás, macio no plano', '#ff8a2a', '1–2 pilotos + 7'],
+  ['407', 'Bell 407 / 407GXi', 'RR M250-C47B / C47E/4', '1 turboeixo', '813 a 862 shp', '4 pás, composto', '#c77dff', '1 piloto + 6'],
+  ['206', 'Bell 206 JetRanger', 'RR 250-C20J', '1 turboeixo', '~420 shp', '2 pás, semirrígido', '#46c08a', '1 piloto + 4'],
+  ['206L4', 'Bell 206L-4 LongRanger IV', 'RR 250-C30P', '1 turboeixo', '485 kW (650 shp)', '2 pás, semirrígido', '#f2c14e', '1 piloto + 6'],
+  ['230', 'Bell 230', '2× RR 250-C30G/2', '2 turboeixos', '485 kW por motor', '2 pás, semirrígido', '#e05d6f', '1–2 pilotos + 8'],
+  ['430', 'Bell 430', '2× RR 250-C40B', '2 turboeixos', '533 kW por motor', '4 pás, sem rolamentos', '#4fd1c5', '1–2 pilotos + 8']
+];
+const NOMES = { cubo_rp: 'Cubo do rotor principal', pas_rp: 'Pás do rotor principal', mastro: 'Mastro', swash: 'Swashplate', transmissao: 'Transmissão principal', suporte_trans: 'Suportes da transmissão',
+  motor: 'Motor', eixo_motor: 'Eixo motor–transmissão', escapamento: 'Escapamento', entrada_ar: 'Entrada de ar do motor', gerador: 'Gerador de partida', radiador_oleo: 'Radiador de óleo',
+  eixo_rc: 'Eixo do rotor de cauda', caixa_rc: 'Caixa de 90° do rotor de cauda', rotor_cauda: 'Rotor de cauda', estabilizador: 'Estabilizador horizontal', deriva: 'Deriva vertical',
+  comandos: 'Comandos de voo', comandos_rc: 'Comando do rotor de cauda', hidraulico: 'Sistema hidráulico (servos)', combustivel: 'Tanque de combustível', bateria: 'Bateria',
+  avionica: 'Aviônica', avionica_tras: 'Aviônica traseira', painel: 'Painel de instrumentos', pitot: 'Tubo de pitot', antenas: 'Antenas', luzes: 'Luzes', extintor: 'Extintor',
+  esquis: 'Trem de pouso (esquis)', fuselagem: 'Fuselagem', fus_traseira: 'Fuselagem traseira', nariz: 'Nariz', carenagem_diant: 'Carenagem dianteira', carenagem_escape: 'Carenagem do escapamento', carenagem_motor: 'Carenagem do motor', carenagem_trans: 'Carenagem da transmissão', cone_cauda: 'Cone de cauda', janelas: 'Janelas', parabrisa: 'Para-brisa', vidro: 'Vidros', porta_bag: 'Porta do bagageiro', piso: 'Piso e estrutura da cabine', casca: 'Fuselagem', capo: 'Carenagens do motor', portas: 'Portas', cone: 'Cone de cauda' };
+const $ = (s) => document.querySelector(s);
+
+/* ---------- 3D próprio (canvas 2D, sem bibliotecas, funciona offline) ---------- */
+const GEO = {
+  '505':   { rx: 1.9, ry: 1.05, rz: 0.82, boom: 5.4, R: 5.6, pas: 2, twin: false, pasRc: 2 },
+  '429':   { rx: 2.6, ry: 1.25, rz: 1.05, boom: 5.8, R: 5.5, pas: 4, twin: true,  pasRc: 4 },
+  '407':   { rx: 2.2, ry: 1.12, rz: 0.88, boom: 5.6, R: 5.35, pas: 4, twin: false, pasRc: 2 },
+  '206':   { rx: 1.9, ry: 1.02, rz: 0.78, boom: 5.2, R: 5.1, pas: 2, twin: false, pasRc: 2 },
+  '206L4': { rx: 2.3, ry: 1.08, rz: 0.84, boom: 5.6, R: 5.6, pas: 2, twin: false, pasRc: 2 },
+  '230':   { rx: 2.7, ry: 1.2,  rz: 1.0,  boom: 5.8, R: 6.4, pas: 2, twin: true,  pasRc: 2 },
+  '430':   { rx: 2.8, ry: 1.2,  rz: 1.0,  boom: 6.0, R: 6.4, pas: 4, twin: true,  pasRc: 2 }
+};
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cruz = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+function quad(L, a, b, c, d, o) { L.push({ p: [a, b, c], ...o }, { p: [a, c, d], ...o }); }
+function elipsoide(L, c, r, o, nu = 18, nv = 12, fn) {
+  const P = (i, j) => { const u = i / nu * 2 * Math.PI, v = j / nv * Math.PI; return [c[0] + r[0] * Math.cos(v), c[1] + r[1] * Math.sin(v) * Math.cos(u), c[2] + r[2] * Math.sin(v) * Math.sin(u)]; };
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+    const a = P(i, j), b = P(i + 1, j), cc = P(i + 1, j + 1), d = P(i, j + 1);
+    const m = [(a[0] + cc[0]) / 2, (a[1] + cc[1]) / 2, (a[2] + cc[2]) / 2];
+    quad(L, a, b, cc, d, fn ? { ...o, ...fn(m) } : o);
+  }
+}
+function tronco(L, a, b, r1, r2, o, n = 12, tampa = true) {
+  const d = norm(sub(b, a)), up = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const e1 = norm(cruz(d, up)), e2 = cruz(d, e1);
+  const anel = (p, r) => Array.from({ length: n }, (_, i) => { const t = i / n * 2 * Math.PI, c = Math.cos(t) * r, s = Math.sin(t) * r; return [p[0] + e1[0] * c + e2[0] * s, p[1] + e1[1] * c + e2[1] * s, p[2] + e1[2] * c + e2[2] * s]; });
+  const A = anel(a, r1), B = anel(b, r2);
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; quad(L, A[i], A[j], B[j], B[i], o); }
+  if (tampa) for (let i = 0; i < n; i++) { const j = (i + 1) % n; L.push({ p: [a, A[j], A[i]], ...o }, { p: [b, B[i], B[j]], ...o }); }
+}
+function caixa(L, c, s, o) {
+  const [x, y, z] = c, [a, b, d] = [s[0] / 2, s[1] / 2, s[2] / 2];
+  const v = [[x - a, y - b, z - d], [x + a, y - b, z - d], [x + a, y + b, z - d], [x - a, y + b, z - d], [x - a, y - b, z + d], [x + a, y - b, z + d], [x + a, y + b, z + d], [x - a, y + b, z + d]];
+  [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [3, 2, 6, 7], [0, 3, 7, 4], [1, 2, 6, 5]].forEach((f) => quad(L, v[f[0]], v[f[1]], v[f[2]], v[f[3]], o));
+}
+function montar(id, cor) {
+  const g = GEO[id], { rx, ry, rz, boom } = g, L = [];
+  const pele = (part, c) => ({ part, cor: c || cor, pele: true });
+  const peca = (part, c) => ({ part, cor: c, pele: false });
+  // fuselagem com para-brisa
+  elipsoide(L, [0, 0, 0], [rx, ry, rz], pele('fuselagem'), 20, 12, (m) => (m[0] > rx * 0.42 && m[1] > -ry * 0.15 ? { part: 'parabrisa', cor: '#7fc4ff', vidro: true } : m[1] < -ry * 0.55 ? { cor: '#2a3542' } : {}));
+  // carenagem superior (motor/transmissão)
+  elipsoide(L, [-rx * 0.35, ry * 0.82, 0], [rx * 0.78, ry * 0.42, rz * 0.62], pele('carenagem_motor', '#3b4756'), 16, 8);
+  // cone de cauda
+  const ini = [-rx * 0.8, ry * 0.3, 0], fim = [-rx - boom, ry * 0.55, 0];
+  tronco(L, ini, fim, 0.48, 0.17, pele('cone_cauda'), 14);
+  // interior
+  const ym = ry * 0.95;
+  tronco(L, [0.05, ry * 0.45, 0], [0.05, ry * 1.12, 0], 0.4, 0.27, peca('transmissao', '#9aa7b5'));
+  tronco(L, [0.05, ry * 1.1, 0], [0.05, ry * 1.8, 0], 0.09, 0.09, peca('mastro', '#c9d2dc'), 8);
+  tronco(L, [0.05, ry * 1.32, 0], [0.05, ry * 1.42, 0], 0.34, 0.34, peca('swash', '#b48cff'), 14);
+  (g.twin ? [0.32, -0.32] : [0]).forEach((z) => {
+    tronco(L, [-rx * 0.25, ym, z], [-rx * 1.0, ym, z], 0.26, 0.22, peca('motor', '#e8873a'), 12);
+    tronco(L, [-rx * 1.0, ym, z], [-rx * 1.25, ym + 0.35, z * 1.4], 0.16, 0.2, peca('escapamento', '#6d6258'), 10);
+    tronco(L, [-rx * 0.2, ym, z], [0.0, ry * 0.75, z * 0.4], 0.06, 0.06, peca('eixo_motor', '#d8dee5'), 6);
+  });
+  caixa(L, [-rx * 0.25, -ry * 0.62, 0], [rx * 0.7, ry * 0.32, rz * 1.2], peca('combustivel', '#3ccf8e'));
+  caixa(L, [rx * 0.72, -ry * 0.3, 0], [0.35, 0.25, 0.4], peca('bateria', '#f2c14e'));
+  caixa(L, [rx * 0.6, ry * 0.05, 0], [0.15, 0.4, rz * 1.3], peca('painel', '#20262e'));
+  caixa(L, [rx * 0.78, -ry * 0.05, 0], [0.3, 0.25, rz * 0.8], peca('avionica', '#4f6b8a'));
+  [0.22, -0.22].forEach((z) => caixa(L, [0.35, ry * 0.85, z], [0.18, 0.2, 0.12], peca('hidraulico', '#ef5b5b')));
+  tronco(L, [rx * 0.35, -ry * 0.45, 0.25], [rx * 0.35, ry * 0.05, 0.25], 0.04, 0.03, peca('comandos', '#ff9d2e'), 6);
+  tronco(L, [rx * 0.3, -ry * 0.5, 0], [0.2, ry * 1.25, 0], 0.035, 0.035, peca('comandos', '#ff9d2e'), 6);
+  tronco(L, [-rx * 0.8, ry * 0.82, 0], [fim[0] + 0.3, fim[1] + 0.18, 0], 0.06, 0.06, peca('eixo_rc', '#d8dee5'), 6);
+  elipsoide(L, [fim[0] + 0.15, fim[1] + 0.25, 0], [0.28, 0.2, 0.2], peca('caixa_rc', '#9aa7b5'), 10, 6);
+  // empenagem
+  caixa(L, [fim[0] + 0.1, fim[1] + 0.75, 0], [0.7, 1.4, 0.07], peca('deriva', cor));
+  caixa(L, [-rx - boom * 0.45, fim[1] - 0.02, 0], [0.55, 0.06, 2.3], peca('estabilizador', cor));
+  // esquis
+  const ys = -ry - 0.5;
+  [1, -1].forEach((s) => {
+    tronco(L, [rx * 0.95, ys + 0.12, s * rz * 1.15], [-rx * 1.05, ys, s * rz * 1.15], 0.06, 0.06, peca('esquis', '#8d99a6'), 6);
+    [0.45, -0.55].forEach((x) => tronco(L, [x * rx, -ry * 0.7, s * rz * 0.5], [x * rx, ys, s * rz * 1.15], 0.05, 0.05, peca('esquis', '#8d99a6'), 6));
+  });
+  return { L, g, fimCauda: fim, topo: [0.05, ry * 1.8, 0] };
+}
+function rotores(m, ang) {
+  const L = [], { g, topo, fimCauda } = m, o = { part: 'pas_rp', cor: '#d9dee4', pele: false };
+  elipsoide(L, topo, [0.38, 0.14, 0.38], { part: 'cubo_rp', cor: '#7b8794', pele: false }, 10, 6);
+  for (let i = 0; i < g.pas; i++) {
+    const a = ang + i * 2 * Math.PI / g.pas, c = Math.cos(a), s = Math.sin(a), w = 0.17;
+    const p = (r, d) => [topo[0] + c * r - s * d, topo[1] + 0.05 - r * 0.012, topo[2] + s * r + c * d];
+    quad(L, p(0.3, -w), p(g.R, -w), p(g.R, w), p(0.3, w), o);
+  }
+  const ct = [fimCauda[0] + 0.15, fimCauda[1] + 0.3, 0.32], rr = 0.95;
+  for (let i = 0; i < g.pasRc; i++) {
+    const a = ang * 4.5 + i * 2 * Math.PI / g.pasRc, c = Math.cos(a), s = Math.sin(a), w = 0.07;
+    const p = (r, d) => [ct[0] + c * r - s * d, ct[1] + s * r + c * d, ct[2]];
+    quad(L, p(0.05, -w), p(rr, -w), p(rr, w), p(0.05, w), { part: 'rotor_cauda', cor: '#d9dee4', pele: false });
+  }
+  return L;
+}
+const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const LUZ = norm([0.45, 0.8, 0.4]);
+const palco = $('#palco'), tela = $('#tela3d'), ctx = tela.getContext('2d');
+let mod = null, girar = true, raiox = false, sel = null, idAtual = '505', ang = 0;
+let yaw = -0.75, pitch = 0.32, dist = 17, alvo = [-2.4, 0.4, 0], desenhados = [];
+function vistaGeral() { yaw = -0.75; pitch = 0.32; dist = 11 + GEO[idAtual].boom * 0.3; alvo = [-(GEO[idAtual].rx + GEO[idAtual].boom) * 0.4, 0.5, 0]; }
+function render() {
+  const w = tela.width, h = tela.height, f = Math.min(w, h) * 1.25, cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  ctx.clearRect(0, 0, w, h);
+  const P = (p) => { const x = p[0] - alvo[0], y = p[1] - alvo[1], z = p[2] - alvo[2]; const x1 = x * cy - z * sy, z1 = x * sy + z * cy; const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp; const d = dist - z2; return [w / 2 + f * x1 / d, h / 2 - f * y2 / d, d]; };
+  const tris = mod.L.concat(rotores(mod, ang)), lista = [];
+  const transp = raiox || (sel && !/^(fuselagem|carenagem_motor|cone_cauda|parabrisa)$/.test(sel));
+  for (const t of tris) {
+    const a = P(t.p[0]), b = P(t.p[1]), c = P(t.p[2]); if (a[2] < 0.3 || b[2] < 0.3 || c[2] < 0.3) continue;
+    const n = norm(cruz(sub(t.p[1], t.p[0]), sub(t.p[2], t.p[0])));
+    const k = 0.38 + 0.62 * Math.abs(n[0] * LUZ[0] + n[1] * LUZ[1] + n[2] * LUZ[2]);
+    let alfa = 1; if (t.vidro) alfa = 0.5; if (t.pele && transp) alfa = 0.09;
+    const cor = t.part === sel ? '#ff9d2e' : t.cor;
+    lista.push({ s: [a, b, c], z: (a[2] + b[2] + c[2]) / 3, k, alfa, cor, part: t.part, pele: t.pele });
+  }
+  lista.sort((p, q) => q.z - p.z);
+  for (const t of lista) {
+    const [r, g, b] = rgb(t.cor);
+    ctx.fillStyle = `rgba(${r * t.k | 0},${g * t.k | 0},${b * t.k | 0},${t.alfa})`;
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = t.alfa < 0.2 ? 0.3 : 0.8;
+    ctx.beginPath(); ctx.moveTo(t.s[0][0], t.s[0][1]); ctx.lineTo(t.s[1][0], t.s[1][1]); ctx.lineTo(t.s[2][0], t.s[2][1]); ctx.closePath();
+    ctx.fill(); if (t.alfa > 0.2) ctx.stroke(); else { ctx.strokeStyle = 'rgba(140,180,220,.12)'; ctx.stroke(); }
+  }
+  desenhados = lista;
+}
+function dentro(px, py, s) {
+  const d = (a, b) => (px - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (py - b[1]);
+  const d1 = d(s[0], s[1]), d2 = d(s[1], s[2]), d3 = d(s[2], s[0]);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+}
+function escolher(px, py) {
+  const transp = raiox || (sel && !/^(fuselagem|carenagem_motor|cone_cauda|parabrisa)$/.test(sel));
+  for (let i = desenhados.length - 1; i >= 0; i--) { const t = desenhados[i]; if (t.pele && transp) continue; if (dentro(px, py, t.s)) return t.part; }
+  return null;
+}
+function carregar(id) {
+  idAtual = id; const f = FROTA.find((x) => x[0] === id); mod = montar(id, f[6]); sel = null; vistaGeral();
+  $('#nomeModelo').textContent = f[1]; $('#peca').textContent = 'Toque numa parte da aeronave';
+  $('#ficha').innerHTML = [['Motor', f[2]], ['Configuração', f[3]], ['Potência', f[4]], ['Rotor principal', f[5]], ['Ocupantes', f[7]], ['Comando direcional', ['505', '429'].includes(id) ? 'cabos e polias' : 'tubos']]
+    .map(([k, v]) => `<div><b>${k}</b>${v}</div>`).join('');
+  document.querySelectorAll('#modelos .chip').forEach((b) => b.setAttribute('aria-pressed', b.dataset.id === id));
+}
+$('#modelos').innerHTML = FROTA.map((f) => `<button class="chip" type="button" data-id="${f[0]}" style="--cor:${f[6]}" aria-pressed="false">${f[1].replace('Bell ', '')}</button>`).join('');
+$('#modelos').onclick = (e) => { const b = e.target.closest('.chip'); if (b) carregar(b.dataset.id); };
+$('#btRotor').onclick = (e) => { girar = !girar; e.currentTarget.classList.toggle('on', girar); };
+$('#btRaiox').onclick = (e) => { raiox = !raiox; e.currentTarget.classList.toggle('on', raiox); };
+$('#btVista').onclick = () => { sel = null; vistaGeral(); $('#peca').textContent = 'Toque numa parte da aeronave'; };
+// toque: arrastar gira, pinça aproxima, toque curto seleciona
+const pts = new Map(); let ini = null, pinca = 0;
+tela.addEventListener('pointerdown', (e) => { tela.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); ini = pts.size === 1 ? [e.clientX, e.clientY, false] : null; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinca = Math.hypot(a[0] - b[0], a[1] - b[1]); } });
+tela.addEventListener('pointermove', (e) => {
+  if (!pts.has(e.pointerId)) return; const ant = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pts.size === 1) { const dx = e.clientX - ant[0], dy = e.clientY - ant[1]; yaw += dx * 0.01; pitch = Math.max(-0.4, Math.min(1.35, pitch + dy * 0.01)); if (ini && Math.hypot(e.clientX - ini[0], e.clientY - ini[1]) > 6) ini[2] = true; }
+  else if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinca) dist = Math.max(6, Math.min(40, dist * pinca / d)); pinca = d; }
+});
+const soltar = (e) => {
+  if (pts.size === 1 && ini && !ini[2]) {
+    const r = tela.getBoundingClientRect(), k = tela.width / r.width, part = escolher((e.clientX - r.left) * k, (e.clientY - r.top) * k);
+    if (part) { sel = part; $('#peca').textContent = NOMES[part] || part; }
+  }
+  pts.delete(e.pointerId); if (pts.size < 2) pinca = 0;
+};
+tela.addEventListener('pointerup', soltar); tela.addEventListener('pointercancel', (e) => { pts.delete(e.pointerId); });
+tela.addEventListener('wheel', (e) => { e.preventDefault(); dist = Math.max(6, Math.min(40, dist * (1 + e.deltaY * 0.001))); }, { passive: false });
+function redim() { const r = Math.min(devicePixelRatio || 1, 2); tela.width = palco.clientWidth * r; tela.height = palco.clientHeight * r; }
+new ResizeObserver(redim).observe(palco); redim();
+let t0 = performance.now();
+(function laco(t) { const dt = Math.min((t - t0) / 1000, 0.05) || 0; t0 = t; if (girar) ang += dt * 5; if (mod) render(); requestAnimationFrame(laco); })(t0);
+carregar('505');
+
+
+/* ---------- comandos e swashplate (vista de cima) ---------- */
+const cv = $('#swash'), g = cv.getContext('2d'); let fase = 0;
+const est = () => ({ col: +$('#slCol').value / 100, lon: +$('#slLon').value / 100, lat: +$('#slLat').value / 100, ped: +$('#slPed').value / 100 });
+const fmt = (v, d = 1) => (Math.abs(v) < 0.05 ? 0 : v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+function desenhar() {
+  const s = est(); g.clearRect(0, 0, 300, 300);
+  for (const [k, o] of [['col', 'oCol'], ['lon', 'oLon'], ['lat', 'oLat'], ['ped', 'oPed']]) $('#' + o).textContent = Math.round(s[k] * 100) + '%';
+  $('#valores').textContent = `Passo coletivo ≈ ${fmt(4 + s.col * 12)}° · disco: long. ${fmt(-s.lon * 8)}° / lat. ${fmt(s.lat * 8)}° · rotor de cauda ≈ ${fmt(s.ped * 18)}°`;
+  const cx = 150 + s.lat * 34, cy = 150 + s.lon * 34, R = 70 + s.col * 30;
+  g.strokeStyle = '#263241'; g.lineWidth = 2; g.beginPath(); g.arc(150, 150, 120, 0, 7); g.stroke();
+  [[-0.5, 'E'], [0.5, 'D'], [Math.PI / 2 + 1.07, 'C']].forEach(([a]) => { const x = 150 + Math.sin(a) * 105, y = 150 - Math.cos(a) * 105; g.fillStyle = '#7b5ccf'; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); });
+  g.fillStyle = 'rgba(255,157,46,.16)'; g.strokeStyle = '#ff9d2e'; g.lineWidth = 4; g.beginPath(); g.ellipse(cx, cy, R, R * (1 - Math.abs(s.lon) * 0.25), 0, 0, 7); g.fill(); g.stroke();
+  for (let i = 0; i < 4; i++) { const a = fase + i * Math.PI / 2; g.strokeStyle = '#e7edf3'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (R + 18), cy + Math.sin(a) * (R + 18)); g.stroke(); }
+  g.fillStyle = '#8a99aa'; g.beginPath(); g.arc(cx, cy, 8, 0, 7); g.fill();
+}
+document.querySelectorAll('.sl input').forEach((i) => { i.oninput = desenhar; });
+const reduzir = matchMedia('(prefers-reduced-motion: reduce)').matches;
+(function anima() { if (!reduzir) fase += 0.03; desenhar(); requestAnimationFrame(anima); })();
+
+/* ---------- leitura digital (exemplo ilustrativo, texto próprio) ---------- */
+const PASSOS = [
+  'Coloque a alavanca do coletivo no batente inferior e trave com a ferramenta de regulagem <span class="ferr">T-EXEMPLO-01</span>.',
+  'Remova a cupilha <span class="pn">MS24665-151</span>, a porca e o parafuso da extremidade do tubo de comando.',
+  'Inspecione o rolamento esférico quanto a folga, corrosão e travamento.',
+  'Instale o tubo com parafuso, arruelas e porca novos. Aplique torque de <span class="torque">75 a 95 inch-pounds</span>.',
+  'Instale cupilha nova e confira o curso completo do coletivo, sem interferência.'
+];
+$('#passos').innerHTML = PASSOS.map((p, i) => `<label class="passo" for="p${i}"><input type="checkbox" id="p${i}"><b>${i + 1}</b><span>${p}</span></label>`).join('');
+$('#passos').onchange = () => { const c = document.querySelectorAll('#passos input'); $('#barra').style.width = ([...c].filter((x) => x.checked).length / c.length * 100) + '%'; };
+
+/* ---------- tabela ---------- */
+$('#tabela').innerHTML = FROTA.map((f) => `<tr><td class="mod"><i style="background:${f[6]}"></i>${f[1].replace('Bell ', '')}</td><td>${f[2]}</td><td>${f[3]}</td><td>${f[4]}</td><td>${f[5]}</td></tr>`).join('');
+</script>
+</body>
+</html>
